@@ -1,0 +1,14 @@
+{
+  "name": "royal-gold-club",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Royal Gold Club — experiencia local de club de cartas premium",
+  "scripts": {
+    "dev": "node server.mjs",
+    "start": "node server.mjs",
+    "test": "node --test \"tests/*.test.mjs\""
+  },
+  "dependencies": {
+    "ws": "^8.22.0"
+  }
+}

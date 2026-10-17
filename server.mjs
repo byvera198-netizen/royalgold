@@ -1,0 +1,261 @@
+import { createServer } from 'node:http';
+import { readFile } from 'node:fs/promises';
+import { extname, join, normalize } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { randomBytes, randomUUID } from 'node:crypto';
+import { WebSocketServer } from 'ws';
+import { createGame, drawCard, playCard, serializeGame } from './games/uno.mjs';
+import { createGame as createBlackjackGame, hit as blackjackHit, stand as blackjackStand, serializeGame as serializeBlackjackGame } from './games/blackjack.mjs';
+import { createGame as createDominoGame, drawTile as dominoDraw, placeTile as dominoPlace, pass as dominoPass, serializeGame as serializeDominoGame } from './games/domino.mjs';
+import { act as pokerAct, createGame as createPokerGame, serializeGame as serializePokerGame } from './games/poker.mjs';
+import { createGame as createRummyGame, discardCard as rummyDiscard, drawDiscard as rummyDrawDiscard, drawStock as rummyDrawStock, layMeld as rummyLayMeld, serializeGame as serializeRummyGame } from './games/rummy.mjs';
+import { createGame as createCrazyGame, drawCard as crazyDrawCard, playCard as crazyPlayCard, serializeGame as serializeCrazyGame } from './games/crazy-eights.mjs';
+import { createStore } from './server/store.mjs';
+
+const root = fileURLToPath(new URL('.', import.meta.url));
+const port = Number(process.env.PORT || 4173);
+const mime = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.json': 'application/json; charset=utf-8', '.webmanifest': 'application/manifest+json; charset=utf-8', '.svg': 'image/svg+xml' };
+const rooms = new Map();
+const store = await createStore();
+for (const table of await store.listTables()) rooms.set(table.code, { table, clients: new Map(), playerEmails: new Map(), game: null, roundId: null });
+const heartbeatMs = 30000;
+
+function roomCode() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  const bytes = randomBytes(6);
+  return 'ROYAL-' + [...bytes].map(byte => chars[byte % chars.length]).join('');
+}
+function send(ws, type, payload = {}) {
+  if (ws && ws.readyState === 1) ws.send(JSON.stringify({ type, ...payload }));
+}
+function publicTable(room) {
+  return {
+    ...room.table,
+    players: [...room.clients.values()].map(client => ({ id: client.id, name: client.name, email: client.email, connected: client.ws ? client.ws.readyState === 1 : true }))
+  };
+}
+function publicGame(room, client) {
+  if (!room.game) return null;
+  if (room.game.kind === 'blackjack') return serializeBlackjackGame(room.game, client.id);
+  if (room.game.kind === 'domino') return serializeDominoGame(room.game, client.id);
+  if (room.game.kind === 'poker') return serializePokerGame(room.game, client.id);
+  if (room.game.kind === 'rummy') return serializeRummyGame(room.game, client.id);
+  if (room.game.kind === 'crazy') return serializeCrazyGame(room.game, client.id);
+  return serializeGame(room.game, client.id);
+}
+function broadcastRoom(room) {
+  for (const client of room.clients.values()) send(client.ws, 'room_state', { table: publicTable(room) });
+}
+function broadcastGame(room) {
+  for (const client of room.clients.values()) send(client.ws, 'game_state', { game: publicGame(room, client) });
+}
+function error(ws, message) { send(ws, 'error', { message }); }
+function resultFor(room, client) {
+  const game = room.game;
+  const me = game?.players?.find(player => player.id === client.id);
+  const winner = game?.winnerId === client.id || game?.winnerIds?.includes(client.id) || me?.result === 'win' || me?.result === 'blackjack';
+  const result = game?.kind === 'blackjack' ? ({ blackjack: 'Blackjack', win: 'Victoria', push: 'Empate', lose: 'Derrota', bust: 'Te pasaste' }[me?.result] || 'Partida terminada') : winner ? 'Victoria' : 'Partida terminada';
+  return { id: `${room.table.id}:${room.roundId}`, gameId: room.table.gameId, gameName: room.table.gameName, date: new Date().toISOString(), result, delta: winner ? 50 : 0, won: winner };
+}
+function broadcastResult(room) { if (!room.game?.finished) return; for (const client of room.clients.values()) send(client.ws, 'game_result', { result: resultFor(room, client) }); }
+
+const server = createServer(async (req, res) => {
+  const urlPath = decodeURIComponent((req.url || '/').split('?')[0]);
+  if (urlPath === '/health') {
+    const body = JSON.stringify({ status: 'ok', realtime: true, storage: store.mode, rooms: rooms.size, checkedAt: new Date().toISOString() });
+    res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }); res.end(body); return;
+  }
+  const safePath = normalize(urlPath === '/' ? '/index.html' : urlPath);
+  const filePath = join(root, safePath);
+  if (!filePath.startsWith(root)) {
+    res.writeHead(403); res.end('Forbidden'); return;
+  }
+  try {
+    const body = await readFile(filePath);
+    res.writeHead(200, { 'Content-Type': mime[extname(filePath)] || 'application/octet-stream', 'Cache-Control': 'no-cache' });
+    res.end(body);
+  } catch {
+    res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8' }); res.end('Not found');
+  }
+});
+
+const wss = new WebSocketServer({ noServer: true, maxPayload: 64 * 1024 });
+wss.on('connection', ws => {
+  ws.isAlive = true;
+  ws.on('pong', () => { ws.isAlive = true; });
+  const client = { ws, id: randomUUID(), userId: '', name: 'Miembro Royal', email: '', roomCode: null, voiceActive: false, windowStartedAt: Date.now(), messagesInWindow: 0 };
+  ws.on('message', async raw => {
+    const now = Date.now();
+    if (now - client.windowStartedAt >= 10000) { client.windowStartedAt = now; client.messagesInWindow = 0; }
+    client.messagesInWindow += 1;
+    if (client.messagesInWindow > 120) { error(ws, 'Demasiados mensajes; intenta de nuevo en unos segundos'); return; }
+    let message;
+    try { message = JSON.parse(raw.toString()); } catch { error(ws, 'Mensaje inválido'); return; }
+    const { type } = message;
+    if (type === 'hello') {
+      client.name = String(message.name || 'Miembro Royal').slice(0, 40);
+      client.email = String(message.email || '').slice(0, 120);
+      client.userId = String(message.userId || '').slice(0, 80);
+      send(ws, 'connected', { playerId: client.id });
+      return;
+    }
+    if (type === 'create_table') {
+      const code = roomCode();
+      if (store.mode === 'supabase' && !client.userId) return error(ws, 'Inicia sesión para crear una mesa persistente');
+      const table = { id: randomUUID(), code, name: String(message.name || 'Mesa Royal').slice(0, 60), gameId: message.gameId === 'uno' ? 'uno' : String(message.gameId || 'uno'), gameName: String(message.gameName || 'UNO'), maxPlayers: Math.max(2, Math.min(10, Number(message.maxPlayers) || 4)), private: message.private !== false, voice: message.voice !== false, stake: Math.max(0, Number(message.stake) || 0), status: 'waiting', createdAt: new Date().toISOString(), expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), host: client.email, hostId: client.userId || null };
+      const room = { table, clients: new Map(), playerEmails: new Map(), game: null, roundId: null };
+      rooms.set(code, room); room.clients.set(client.id, client); if (client.email) room.playerEmails.set(client.email, client.id); client.roomCode = code; await store.saveTable(table);
+      send(ws, 'table_created', { table: publicTable(room) }); broadcastRoom(room); return;
+    }
+    if (type === 'join_table') {
+      const code = String(message.code || '').toUpperCase(); const room = rooms.get(code);
+      if (!room) return error(ws, 'No encontramos una mesa con ese código');
+      if (new Date(room.table.expiresAt) <= new Date()) { rooms.delete(code); await store.closeTable(room.table.id); return error(ws, 'El código de esta mesa ya caducó'); }
+      const returningId = client.email ? room.playerEmails.get(client.email) : null;
+      const existing = returningId ? room.clients.get(returningId) : null;
+      if (existing?.ws?.readyState === 1) return error(ws, 'Este miembro ya está conectado a la mesa');
+      if (room.clients.size >= room.table.maxPlayers && !returningId) return error(ws, 'Esta mesa ya está completa');
+      if (returningId && !existing) client.id = returningId;
+      room.clients.set(client.id, client); if (client.email) room.playerEmails.set(client.email, client.id); client.roomCode = code; if (returningId) send(ws, 'connected', { playerId: client.id, resumed: true }); send(ws, 'joined_table', { table: publicTable(room) }); broadcastRoom(room); if (room.game) { send(ws, 'game_state', { game: publicGame(room, client) }); if (room.game.finished) send(ws, 'game_result', { result: resultFor(room, client) }); } return;
+    }
+    if (type === 'add_bot') {
+      const room = rooms.get(client.roomCode); if (!room || room.clients.size >= room.table.maxPlayers) return;
+      const bot = { ws: null, id: `bot-${randomUUID()}`, name: `Rival de prueba ${String(room.clients.size).padStart(2, '0')}`, email: `bot-${room.clients.size}@local`, roomCode: client.roomCode };
+      room.clients.set(bot.id, bot); room.playerEmails.set(bot.email, bot.id); broadcastRoom(room); return;
+    }
+    const room = rooms.get(client.roomCode);
+    if (!room) return error(ws, 'Primero debes entrar a una mesa');
+    if (type === 'voice_join') {
+      client.voiceActive = true;
+      const peers = [...room.clients.values()].filter(participant => participant.id !== client.id && participant.voiceActive).map(participant => ({ id: participant.id, name: participant.name }));
+      send(ws, 'voice_peers', { peers });
+      for (const participant of room.clients.values()) if (participant.id !== client.id && participant.voiceActive) send(participant.ws, 'voice_peer_joined', { peer: { id: client.id, name: client.name } });
+      return;
+    }
+    if (type === 'voice_leave') {
+      client.voiceActive = false;
+      for (const participant of room.clients.values()) if (participant.id !== client.id && participant.voiceActive) send(participant.ws, 'voice_peer_left', { peerId: client.id });
+      return;
+    }
+    if (type === 'voice_signal') {
+      const target = room.clients.get(String(message.to || ''));
+      if (!target || !target.voiceActive) return error(ws, 'El participante de voz ya no está disponible');
+      send(target.ws, 'voice_signal', { from: client.id, signal: message.signal });
+      return;
+    }
+    if (type === 'chat_message') {
+      const body = String(message.body || '').trim().slice(0, 240);
+      if (!body) return;
+      const chatMessage = { id: randomUUID(), playerId: client.id, name: client.name, body, createdAt: new Date().toISOString() };
+      for (const participant of room.clients.values()) send(participant.ws, 'chat_message', { message: chatMessage });
+      return;
+    }
+    if (type === 'start_game') {
+      if (!['uno', 'blackjack', 'domino', 'poker', 'rummy', 'crazy'].includes(room.table.gameId)) return error(ws, 'Esta mesa todavía no tiene un motor jugable');
+      if (room.clients.size < 2) return error(ws, 'Se necesitan al menos dos participantes');
+      const maxPlayersByGame = { uno: 10, blackjack: 7, domino: 4, poker: 9, rummy: 4, crazy: 6 };
+      if (room.clients.size > maxPlayersByGame[room.table.gameId]) return error(ws, `Esta mesa admite máximo ${maxPlayersByGame[room.table.gameId]} participantes`);
+      if (room.table.hostId ? room.table.hostId !== client.userId : room.table.host !== client.email) return error(ws, 'Solo el anfitrión puede iniciar la partida');
+      if (room.game && !room.game.finished) return error(ws, 'La partida ya está en curso');
+      room.table.status = 'playing';
+      room.roundId = randomUUID();
+      const players = [...room.clients.values()].map(({ id, name }) => ({ id, name }));
+      try { room.game = room.table.gameId === 'blackjack' ? createBlackjackGame(players) : room.table.gameId === 'domino' ? createDominoGame(players) : room.table.gameId === 'poker' ? createPokerGame(players) : room.table.gameId === 'rummy' ? createRummyGame(players) : room.table.gameId === 'crazy' ? createCrazyGame(players) : createGame(players); }
+      catch (gameError) { room.table.status = 'waiting'; return error(ws, gameError.message); }
+      await store.saveTable(room.table); broadcastRoom(room); broadcastGame(room); return;
+    }
+    if (type === 'play_card' || type === 'draw_card') {
+      if (room.game?.kind === 'blackjack') return error(ws, 'Usa pedir carta o plantarte en esta mesa');
+      if (room.game?.kind === 'domino') return error(ws, 'Usa las acciones de fichas de esta mesa');
+      if (room.game?.kind === 'poker') return error(ws, 'Usa las acciones de apuestas de esta mesa');
+      if (room.game?.kind === 'rummy') return error(ws, 'Usa las acciones de Rummy de esta mesa');
+      if (room.game?.kind === 'crazy') return error(ws, 'Usa las acciones de Crazy Eights de esta mesa');
+      if (!room.game || room.game.finished) return error(ws, 'La partida no está activa');
+      try { if (type === 'draw_card') drawCard(room.game, client.id); else playCard(room.game, client.id, message.index, message.chosenColor); }
+      catch (playError) { return error(ws, playError.message); }
+      if (room.game.finished) { room.table.status = 'finished'; await store.saveTable(room.table); broadcastResult(room); }
+      broadcastGame(room); broadcastRoom(room); return;
+    }
+    if (type === 'blackjack_hit' || type === 'blackjack_stand') {
+      if (!room.game || room.game.kind !== 'blackjack' || room.game.finished) return error(ws, 'La ronda de 21 no está activa');
+      try { if (type === 'blackjack_hit') blackjackHit(room.game, client.id); else blackjackStand(room.game, client.id); }
+      catch (playError) { return error(ws, playError.message); }
+      if (room.game.finished) { room.table.status = 'finished'; broadcastResult(room); }
+      await store.saveTable(room.table); broadcastGame(room); broadcastRoom(room); return;
+    }
+    if (type === 'domino_place' || type === 'domino_draw' || type === 'domino_pass') {
+      if (!room.game || room.game.kind !== 'domino' || room.game.finished) return error(ws, 'La ronda de dominó no está activa');
+      try {
+        if (type === 'domino_place') dominoPlace(room.game, client.id, Number(message.index), message.side);
+        else if (type === 'domino_draw') dominoDraw(room.game, client.id);
+        else dominoPass(room.game, client.id);
+      } catch (playError) { return error(ws, playError.message); }
+      if (room.game.finished) { room.table.status = 'finished'; broadcastResult(room); }
+      await store.saveTable(room.table); broadcastGame(room); broadcastRoom(room); return;
+    }
+    if (type === 'poker_check' || type === 'poker_call' || type === 'poker_raise' || type === 'poker_fold') {
+      if (!room.game || room.game.kind !== 'poker' || room.game.finished) return error(ws, 'La mano de póker no está activa');
+      try { pokerAct(room.game, client.id, type.replace('poker_', ''), message.amount); }
+      catch (playError) { return error(ws, playError.message); }
+      if (room.game.finished) { room.table.status = 'finished'; broadcastResult(room); }
+      await store.saveTable(room.table); broadcastGame(room); broadcastRoom(room); return;
+    }
+    if (type === 'rummy_draw_stock' || type === 'rummy_draw_discard' || type === 'rummy_discard' || type === 'rummy_meld') {
+      if (!room.game || room.game.kind !== 'rummy' || room.game.finished) return error(ws, 'La ronda de Rummy no está activa');
+      try {
+        if (type === 'rummy_draw_stock') rummyDrawStock(room.game, client.id);
+        else if (type === 'rummy_draw_discard') rummyDrawDiscard(room.game, client.id);
+        else if (type === 'rummy_meld') rummyLayMeld(room.game, client.id, message.indices);
+        else rummyDiscard(room.game, client.id, Number(message.index));
+      } catch (playError) { return error(ws, playError.message); }
+      if (room.game.finished) { room.table.status = 'finished'; broadcastResult(room); }
+      await store.saveTable(room.table); broadcastGame(room); broadcastRoom(room); return;
+    }
+    if (type === 'crazy_play_card' || type === 'crazy_draw_card') {
+      if (!room.game || room.game.kind !== 'crazy' || room.game.finished) return error(ws, 'La ronda de Crazy Eights no está activa');
+      try { if (type === 'crazy_play_card') crazyPlayCard(room.game, client.id, Number(message.index), message.chosenSuit); else crazyDrawCard(room.game, client.id); }
+      catch (playError) { return error(ws, playError.message); }
+      if (room.game.finished) { room.table.status = 'finished'; await store.saveTable(room.table); broadcastResult(room); }
+      broadcastGame(room); broadcastRoom(room); return;
+    }
+    if (type === 'leave_table') {
+      if (client.voiceActive) for (const participant of room.clients.values()) if (participant.id !== client.id && participant.voiceActive) send(participant.ws, 'voice_peer_left', { peerId: client.id });
+      room.clients.delete(client.id); client.roomCode = null;
+      if (!room.clients.size) rooms.delete(room.table.code); else { broadcastRoom(room); if (room.game) broadcastGame(room); }
+    }
+  });
+  ws.on('close', () => {
+    const room = rooms.get(client.roomCode); if (!room) return;
+    if (room.clients.get(client.id) !== client) return;
+    if (client.voiceActive) for (const participant of room.clients.values()) if (participant.id !== client.id && participant.voiceActive) send(participant.ws, 'voice_peer_left', { peerId: client.id });
+    room.clients.delete(client.id);
+    if (!room.clients.size) rooms.delete(room.table.code); else { broadcastRoom(room); if (room.game) broadcastGame(room); }
+  });
+});
+
+server.on('upgrade', (req, socket, head) => {
+  if (req.url !== '/realtime') { socket.destroy(); return; }
+  wss.handleUpgrade(req, socket, head, ws => wss.emit('connection', ws, req));
+});
+
+const heartbeatTimer = setInterval(() => {
+  for (const ws of wss.clients) {
+    if (ws.isAlive === false) { ws.terminate(); continue; }
+    ws.isAlive = false;
+    ws.ping();
+  }
+}, heartbeatMs);
+heartbeatTimer.unref();
+
+const roomCleanupTimer = setInterval(async () => {
+  const now = Date.now();
+  for (const [code, room] of rooms) {
+    if (new Date(room.table.expiresAt).getTime() <= now && room.clients.size === 0) {
+      rooms.delete(code);
+      await store.closeTable(room.table.id);
+    }
+  }
+}, 60000);
+roomCleanupTimer.unref();
+
+server.listen(port, () => console.log(`Royal Gold Club running at http://localhost:${port} · realtime /realtime`));

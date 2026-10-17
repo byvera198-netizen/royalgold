@@ -1,0 +1,15 @@
+{
+  "name": "Royal Gold Club",
+  "short_name": "Royal Gold",
+  "description": "Club privado de juegos de cartas y mesas premium.",
+  "lang": "es-EC",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#090909",
+  "theme_color": "#090909",
+  "icons": [
+    { "src": "/icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any maskable" }
+  ]
+}
