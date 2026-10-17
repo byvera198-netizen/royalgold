@@ -12,7 +12,7 @@ Abre `http://localhost:4173`. También se puede abrir en otra pestaña del mismo
 
 ## Qué está funcionando en esta fase
 
-- Registro e inicio de sesión local con persistencia en `localStorage`.
+- Registro e inicio de sesión con Supabase Auth en producción; la demo local continúa disponible en `localhost`.
 - Lobby responsive, catálogo inicial y estados vacíos reales.
 - Creación de mesas, códigos únicos `ROYAL-XXXXXX`, unión por código, sala de espera y copia/compartir.
 - Canal realtime en `/realtime`: el servidor valida creación/unión, anfitrión, límite de asientos, turnos y jugadas de UNO. Abre dos pestañas en `http://localhost:4173` para probarlo.
@@ -27,13 +27,13 @@ Abre `http://localhost:4173`. También se puede abrir en otra pestaña del mismo
 - Solicitud explícita de permiso de micrófono mediante `getUserMedia`, indicador de micrófono y salida de la mesa.
 - Accesibilidad básica: labels, foco visible, botones táctiles y `prefers-reduced-motion`.
 
-La interfaz muestra si el servidor realtime está conectado. La autenticación del formulario todavía es local; la identidad persistente de Supabase deberá enviar el UUID del usuario en el saludo realtime antes de activar mesas multi-instancia.
+La interfaz muestra si el servidor realtime está conectado. En producción, Supabase Auth mantiene la sesión, el servidor valida el token en el saludo realtime y el trigger crea el perfil y la billetera inicial antes de permitir mesas persistentes.
 
 Las pruebas del motor se ejecutan con `npm test` y cubren baraja, reparto, jugadas válidas, salto, robo y victoria.
 
 ## Siguiente capa de producción
 
-1. **Identidad y datos:** completar Supabase Auth + PostgreSQL. El adaptador de mesas y la migración RLS ya están preparados; falta conectar el formulario de acceso y escribir sesiones, eventos, wallets y resultados en sus tablas.
+1. **Identidad y datos:** Supabase Auth, perfiles, billeteras iniciales y persistencia de mesas ya están conectados. Falta escribir eventos, resultados y transacciones del ledger en sus tablas.
 2. **Servidor autoritativo:** `server.mjs` ya incluye un gateway WebSocket por mesa, heartbeat, límite básico de mensajes, expiración de códigos y validación de turnos/cartas privadas para UNO, Blackjack/21, Dominó, Texas Hold’em, Rummy y Crazy Eights. Para producción, migrarlo a Node.js/TypeScript, añadir acciones idempotentes, versión del estado, autenticación de tokens y almacenamiento persistente.
 3. **Motores independientes:** `games/uno.mjs`, `games/blackjack.mjs`, `games/domino.mjs`, `games/poker.mjs`, `games/rummy.mjs` y `games/crazy-eights.mjs` tienen pruebas de reglas. 21 incluye ases y dealer; Dominó incluye set doble-seis, extremos, pozo y pases; Texas Hold’em incluye ciegas, bote, check/call/raise/fold, calles comunitarias, evaluación de manos y showdown; Rummy incluye robo desde pozo/descarte, manos privadas, turnos, grupos y escaleras; Crazy Eights incluye ocho comodín de palo, descarte y robo. CSPRNG para barajar.
 4. **Voz:** esta fase incluye WebRTC mesh para mesas pequeñas con STUN y señalización propia. Para producción, sustituir o complementar por LiveKit con tokens efímeros generados en servidor, una sala por `table_id`, permisos de micrófono explícitos y sin grabación por defecto.
@@ -59,7 +59,7 @@ La versión local está intencionalmente concentrada en `app.js` para que el pri
 
 `supabase/migrations/001_initial_schema.sql` contiene el contrato PostgreSQL para perfiles, catálogo, mesas, miembros, invitaciones, sesiones, eventos auditables, wallets, movimientos idempotentes, resultados, amistades, bloqueos, notificaciones y reportes. Incluye índices, triggers y políticas RLS. Copia `.env.example` como `.env` para preparar la integración; la `SUPABASE_SECRET_KEY` solo debe vivir en el backend.
 
-La demo local no ejecuta esta migración automáticamente ni inventa una conexión de producción. Con las variables de Supabase, el store usa PostgreSQL para metadatos de mesas; sin ellas, conserva el fallback de archivo para desarrollo. Las transacciones del ledger y la autenticación todavía requieren su integración específica.
+La demo local no ejecuta esta migración automáticamente ni inventa una conexión de producción. Con las variables de Supabase, el store usa PostgreSQL para metadatos de mesas; sin ellas, conserva el fallback de archivo para desarrollo. Las transacciones del ledger, eventos y resultados todavía requieren su integración específica.
 
 ### Despliegue recomendado
 

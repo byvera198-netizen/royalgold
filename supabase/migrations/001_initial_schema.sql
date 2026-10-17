@@ -25,6 +25,25 @@ create table public.profiles (
   updated_at timestamptz not null default now()
 );
 
+create or replace function public.handle_new_user() returns trigger
+language plpgsql security definer set search_path = public as $$
+declare
+  desired_handle text;
+begin
+  desired_handle := lower(regexp_replace(coalesce(new.raw_user_meta_data->>'handle', split_part(coalesce(new.email, ''), '@', 1)), '[^a-zA-Z0-9_]', '', 'g'));
+  if char_length(desired_handle) < 3 then desired_handle := 'member_' || substring(replace(new.id::text, '-', '') from 1 for 8); end if;
+  if char_length(desired_handle) > 24 then desired_handle := left(desired_handle, 24); end if;
+  if exists (select 1 from public.profiles where handle = desired_handle) then desired_handle := left(desired_handle, 15) || '_' || substring(replace(gen_random_uuid()::text, '-', '') from 1 for 8); end if;
+  insert into public.profiles (id, handle, display_name)
+  values (new.id, desired_handle, left(coalesce(new.raw_user_meta_data->>'display_name', split_part(coalesce(new.email, ''), '@', 1), 'Miembro Royal'), 60));
+  insert into public.virtual_wallets (user_id) values (new.id);
+  return new;
+end;
+$$;
+
+drop trigger if exists on_auth_user_created on auth.users;
+create trigger on_auth_user_created after insert on auth.users for each row execute function public.handle_new_user();
+
 create table public.game_catalog (
   id text primary key,
   name text not null,

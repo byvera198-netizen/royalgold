@@ -17,6 +17,16 @@ const port = Number(process.env.PORT || 4173);
 const mime = { '.html': 'text/html; charset=utf-8', '.css': 'text/css; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.json': 'application/json; charset=utf-8', '.webmanifest': 'application/manifest+json; charset=utf-8', '.svg': 'image/svg+xml' };
 const rooms = new Map();
 const store = await createStore();
+const supabaseUrl = String(process.env.SUPABASE_URL || '').replace(/\/$/, '');
+const supabaseSecretKey = String(process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || '');
+async function verifyAccessToken(token) {
+  if (store.mode !== 'supabase' || !token || !supabaseUrl || !supabaseSecretKey) return null;
+  try {
+    const response = await fetch(`${supabaseUrl}/auth/v1/user`, { headers: { apikey: supabaseSecretKey, Authorization: `Bearer ${token}` } });
+    if (!response.ok) return null;
+    return await response.json();
+  } catch { return null; }
+}
 for (const table of await store.listTables()) rooms.set(table.code, { table, clients: new Map(), playerEmails: new Map(), game: null, roundId: null });
 const heartbeatMs = 30000;
 
@@ -93,9 +103,11 @@ wss.on('connection', ws => {
     try { message = JSON.parse(raw.toString()); } catch { error(ws, 'Mensaje inválido'); return; }
     const { type } = message;
     if (type === 'hello') {
-      client.name = String(message.name || 'Miembro Royal').slice(0, 40);
-      client.email = String(message.email || '').slice(0, 120);
-      client.userId = String(message.userId || '').slice(0, 80);
+      const verifiedUser = store.mode === 'supabase' ? await verifyAccessToken(String(message.authToken || '')) : null;
+      if (store.mode === 'supabase' && !verifiedUser?.id) { error(ws, 'Sesión no válida; vuelve a iniciar sesión'); ws.close(1008, 'unauthorized'); return; }
+      client.name = String(verifiedUser?.user_metadata?.display_name || message.name || 'Miembro Royal').slice(0, 40);
+      client.email = String(verifiedUser?.email || message.email || '').slice(0, 120);
+      client.userId = String(verifiedUser?.id || message.userId || '').slice(0, 80);
       send(ws, 'connected', { playerId: client.id });
       return;
     }
