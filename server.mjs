@@ -270,6 +270,21 @@ wss.on('connection', ws => {
       return;
     }
     if (type === 'start_game') return startRoomGame(room, client);
+    if (type === 'delete_table') {
+      const isAdmin = adminEmails.has(client.email.toLowerCase());
+      const isHost = room.table.hostId ? room.table.hostId === client.userId : room.table.host === client.email;
+      if (!isAdmin && !isHost) return error(ws, 'Solo el anfitrión o un administrador puede eliminar la mesa');
+      try { await store.closeTable(room.table.id); }
+      catch (deleteError) { return error(ws, deleteError.message || 'No se pudo eliminar la mesa'); }
+      const participants = [...room.clients.values()];
+      rooms.delete(room.table.code);
+      for (const participant of participants) {
+        send(participant.ws, 'table_deleted', { code: room.table.code, message: 'La mesa fue eliminada por el anfitrión' });
+        participant.roomCode = null;
+        if (participant.userId && !participant.isBot) void setPresence(participant.userId, 'online');
+      }
+      return;
+    }
     if (type === 'play_card' || type === 'draw_card') {
       if (room.game?.kind === 'blackjack') return error(ws, 'Usa pedir carta o plantarte en esta mesa');
       if (room.game?.kind === 'domino') return error(ws, 'Usa las acciones de fichas de esta mesa');

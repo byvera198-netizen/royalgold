@@ -257,6 +257,10 @@ function rtSend(type, payload = {}) { if (state.realtime.ws && state.realtime.co
 function handleRealtimeMessage(message) {
   if (message.type === 'connected') { state.realtime.playerId = message.playerId; if (state.user && message.role) { state.user.role = message.role; state.user.isAdmin = message.isAdmin === true; save(); } return; }
   if (message.type === 'error') { toast(message.message, 'error'); return; }
+  if (message.type === 'table_deleted') {
+    state.tables = state.tables.filter(table => table.code !== message.code);
+    state.currentTable = null; state.uno = null; state.blackjack = null; state.domino = null; state.poker = null; state.rummy = null; state.crazy = null; state.view = 'lobby'; save(); render(); toast(message.message || 'La mesa fue eliminada', 'success'); return;
+  }
   if (message.type === 'game_result') { recordResult(message.result); return; }
   if (message.type === 'chat_message') { state.chat.push(message.message); state.chat = state.chat.slice(-50); if (state.view === 'table') render(); return; }
   if (message.type === 'voice_peers') { message.peers.forEach(peer => { state.voice.names.set(peer.id, peer.name); createVoicePeer(peer, true); }); return; }
@@ -428,7 +432,28 @@ function maxOptionsForGame(gameId) { return ({ uno:[2,4,6,8,10], poker:[2,3,4,5,
 function maxOptionsMarkup(gameId) { return maxOptionsForGame(gameId).map(value => `<option value="${value}">${value}</option>`).join(''); }
 function modal(type) { if(type==='create') return `<div class="modal-backdrop"><div class="modal"><div class="modal-head"><div><div class="eyebrow">Nueva mesa</div><h2>Invita a tu círculo.</h2><p>Configura una partida privada en menos de un minuto.</p></div><button class="close" data-action="close-modal">×</button></div><form id="create-form"><div class="form-grid"><div class="field full"><label>Nombre de la mesa</label><input name="name" required placeholder="Ej. Viernes de cartas" /></div><div class="field"><label>Juego</label><select name="game">${gameCatalog.map(g=>`<option value="${g.id}">${g.name}</option>`).join('')}</select></div><div class="field"><label>Máximo de jugadores</label><select name="max">${maxOptionsMarkup('uno')}</select></div><div class="field"><label>Entrada virtual</label><select name="stake"><option value="0">Sin entrada</option><option value="50">50 fichas</option><option value="100">100 fichas</option><option value="250">250 fichas</option></select></div><div class="field"><label>Límite de apuesta</label><select name="limit"><option>Sin apuestas</option><option>50 fichas</option><option>100 fichas</option></select></div></div><label class="check-row"><input type="checkbox" name="private" checked /> Mesa privada, solo por invitación</label><label class="check-row"><input type="checkbox" name="voice" checked /> Activar voz grupal para esta mesa</label><div class="modal-actions"><button type="button" class="button dark" data-action="close-modal">Cancelar</button><button class="button primary">Crear mesa ${icons.arrow}</button></div></form></div></div>`; if(type==='join') return `<div class="modal-backdrop"><div class="modal"><div class="modal-head"><div><div class="eyebrow">Entrada privada</div><h2>¿Tienes un código?</h2><p>Introduce el código que te compartió tu anfitrión.</p></div><button class="close" data-action="close-modal">×</button></div><form id="join-form"><div class="field"><label>Código de invitación</label><input name="code" required placeholder="ROYAL-7K9M2Q" style="text-transform:uppercase;letter-spacing:.14em;font-size:17px" /></div><div class="notice" style="margin-top:15px">${icons.info}<span>Los códigos de esta versión local funcionan entre pestañas del mismo navegador.</span></div><div class="modal-actions"><button type="button" class="button dark" data-action="close-modal">Cancelar</button><button class="button primary">Revisar mesa ${icons.arrow}</button></div></form></div></div>`; return ''; }
 
-function ensureSoloOption() { const form=document.querySelector('#create-form'); if(form&&!form.querySelector('[name="solo"]')){ const label=document.createElement('label'); label.className='check-row'; label.innerHTML='<input type="checkbox" name="solo" /> Jugar en solitario contra Royal Gold AI'; form.insertBefore(label, form.querySelector('.modal-actions')); } ensureSoloPresentation(); }
+function ensureTableDeleteAction() {
+  const table = state.currentTable;
+  if (!table || !state.user || state.view === 'lobby') return;
+  const isHost = table.hostId && state.user.id ? table.hostId === state.user.id : table.host === state.user.email;
+  if (!isHost && !state.user.isAdmin) return;
+  const host = document.querySelector('.invite-code') || document.querySelector('.table-top');
+  if (!host || host.querySelector('[data-action="delete-table"]')) return;
+  const button = document.createElement('button');
+  button.className = 'button danger small';
+  button.dataset.action = 'delete-table';
+  button.textContent = 'Eliminar mesa';
+  button.addEventListener('click', () => {
+    if (!window.confirm('¿Eliminar esta mesa para todos los jugadores?')) return;
+    if (rtSend('delete_table')) toast('Eliminando mesa…');
+    else {
+      state.tables = state.tables.filter(item => item.code !== table.code);
+      state.currentTable = null; state.view = 'lobby'; save(); render(); toast('Mesa eliminada', 'success');
+    }
+  });
+  host.append(button);
+}
+function ensureSoloOption() { const form=document.querySelector('#create-form'); if(form&&!form.querySelector('[name="solo"]')){ const label=document.createElement('label'); label.className='check-row'; label.innerHTML='<input type="checkbox" name="solo" /> Jugar en solitario contra Royal Gold AI'; form.insertBefore(label, form.querySelector('.modal-actions')); } ensureSoloPresentation(); ensureTableDeleteAction(); }
 function ensureSoloPresentation() { if(!state.currentTable?.solo)return; const seat=document.querySelector('.table-seat.seat-2 strong'); if(seat)seat.textContent='Royal Gold AI'; const extra=document.querySelector('.table-seat.seat-3'); if(extra)extra.remove(); }
 function render() { app.innerHTML = state.user ? (state.view==='waiting' ? shell(waitingView()) : state.view==='table' ? shell(tableView()) : shell(({lobby:lobbyView,games:gamesView,friends:friendsView,history:historyView,stats:statsView,settings:settingsView,profile:profileView}[state.view] || lobbyView)())) : authView(); attachEvents(); ensureSoloOption(); attachResultOverlay(); if (state.user) connectRealtime(); }
 
