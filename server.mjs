@@ -258,4 +258,4 @@ const roomCleanupTimer = setInterval(async () => {
 }, 60000);
 roomCleanupTimer.unref();
 
-server.listen(port, () => console.log(`Royal Gold Club running at http://localhost:${port} · realtime /realtime`));
+server.listen(port, '0.0.0.0', () => console.log(`Royal Gold Club running at http://0.0.0.0:${port} · realtime /realtime`));
