@@ -756,6 +756,35 @@ function ensureGameHelp() {
   const anchor = root.querySelector('.table-top') || root.firstElementChild;
   if (anchor) anchor.insertAdjacentHTML('afterend', gameHelpPanel(state.currentTable.gameId));
 }
+function ensureProfileLogout() {
+  if (state.view !== 'profile' || document.querySelector('[data-action="logout"]')) return;
+  const grid = document.querySelector('.subpage-grid');
+  if (!grid) return;
+  const panel = document.createElement('section');
+  panel.className = 'panel profile-account-panel';
+  panel.innerHTML = '<h3>Cuenta</h3><p class="muted" style="font-size:12px;line-height:1.6">Puedes cerrar tu sesión en cualquier momento. Tus partidas guardadas permanecen en tu cuenta.</p><div class="account-actions"><button class="button dark small" data-action="logout">Cerrar sesión</button></div>';
+  grid.append(panel);
+}
+async function logoutUser() {
+  if (state.voiceOn) await toggleVoice().catch(() => {});
+  rtSend('leave_table');
+  if (state.user?.accessToken) await supabaseAuth('logout', { method: 'POST', token: state.user.accessToken }).catch(() => {});
+  clearTimeout(state.realtime.reconnectTimer);
+  state.realtime.reconnectTimer = null;
+  state.realtime.ws?.close();
+  state.realtime.ws = null;
+  state.realtime.connected = false;
+  state.realtime.playerId = null;
+  state.user = null;
+  state.currentTable = null;
+  state.modal = null;
+  state.view = 'lobby';
+  state.social = { profiles: [], friendships: [], invitations: [], loaded: false, loading: false, query: '' };
+  clearGameState();
+  save();
+  render();
+  toast('Sesión cerrada', 'success');
+}
 document.addEventListener('click', event => {
   const button = event.target.closest?.('[data-action="toggle-game-help"]');
   if (!button) return;
@@ -768,7 +797,15 @@ const originalRender = render;
 render = function () {
   originalRender();
   ensureGameHelp();
+  ensureProfileLogout();
 };
+document.addEventListener('click', async event => {
+  const button = event.target.closest?.('[data-action="logout"]');
+  if (!button) return;
+  event.preventDefault();
+  event.stopImmediatePropagation();
+  await logoutUser();
+}, true);
 const originalTableRow = tableRow;
 tableRow = function (table) {
   const wasAdmin = Boolean(state.user?.isAdmin);
