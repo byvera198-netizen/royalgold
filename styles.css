@@ -162,6 +162,16 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 .reference-google{top:78.8%;left:61.25%;width:30.3%;height:6.35%;font-size:clamp(11px,.95vw,16px);font-weight:700}
 .reference-submit svg{width:20px;height:20px;flex:none}
 .reference-mobile-label{display:none}
+.reference-desktop-label{display:block;position:absolute;top:35.3%;left:61.25%;color:#c8c0ae;font-size:clamp(9px,.72vw,12px);font-weight:600;pointer-events:none}
+.auth-reference-signup-form .reference-name::placeholder{color:#8e8a81}
+.auth-reference-signup-form .reference-name{top:37.8%}
+.auth-reference-signup-form .reference-signup-email{top:46.3%}
+.auth-reference-signup-form .reference-signup-password{top:54.8%}
+.reference-terms{position:absolute;top:62.2%;left:61.25%;width:30.3%;display:flex;align-items:flex-start;gap:8px;color:#c8c0ae;font-size:clamp(9px,.7vw,12px);line-height:1.35;pointer-events:auto}
+.reference-terms input{accent-color:var(--gold);margin:2px 0 0;flex:none}
+.auth-reference-signup-form .reference-submit{top:67.8%}
+.auth-reference-signup-form .reference-google{top:79.1%}
+.auth-reference-signup-form .auth-foot{position:absolute;top:86.8%;left:61.25%;width:30.3%;color:#c8c0ae;text-align:center;font-size:clamp(9px,.68vw,12px);line-height:1.35;pointer-events:none}
 
 @media (max-width:760px){
   .auth-reference-shell{min-height:100svh;overflow:auto;padding:42svh 18px 34px;background:radial-gradient(circle at 50% 0,rgba(245,215,110,.18),transparent 26rem),#070707}
@@ -175,6 +185,7 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
   .reference-login-hit{background:linear-gradient(135deg,var(--gold-light),var(--gold));color:#211a08}
   .reference-signup-hit{color:#aaa69a}
   .reference-mobile-label{display:block;margin:0 0 6px;color:#c8c0ae;font-size:11px;font-weight:600}
+  .reference-desktop-label{display:none}
   .reference-input{position:relative;left:auto;top:auto;width:100%;height:48px;margin:0 0 15px;padding:0 14px;border:1px solid rgba(245,215,110,.32);border-radius:10px;background:rgba(0,0,0,.32);font-size:14px;line-height:48px}
   .reference-input::placeholder{color:#8e8a81}
   .reference-input:focus{background:rgba(0,0,0,.5)}
@@ -182,6 +193,10 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
   .reference-submit,.reference-google{display:flex;width:100%!important;height:49px!important;margin:0 0 10px;border:1px solid rgba(245,215,110,.55);border-radius:10px;font-size:13px}
   .reference-submit{color:#211a08;background:linear-gradient(135deg,var(--gold-light),var(--gold));box-shadow:0 8px 24px rgba(212,175,55,.2),inset 0 1px rgba(255,255,255,.7)}
   .reference-google{color:var(--gold-light);background:rgba(0,0,0,.35)}
+  .auth-reference-signup-form .reference-name,.auth-reference-signup-form .reference-signup-email,.auth-reference-signup-form .reference-signup-password{top:auto}
+  .reference-terms{position:relative;top:auto;left:auto;width:100%;margin:-2px 0 14px;font-size:11px}
+  .auth-reference-signup-form .reference-submit,.auth-reference-signup-form .reference-google{top:auto}
+  .auth-reference-signup-form .auth-foot{position:relative;top:auto;left:auto;width:100%;margin-top:8px;color:#77736b;font-size:10px}
 }
 /* Blackjack / 21 */
 .blackjack-table{min-height:520px;background:radial-gradient(circle at 50% 45%,#0d7555 0,#07543f 42%,#043b2d 100%);border:1px solid rgba(212,175,55,.46);border-radius:22px;box-shadow:inset 0 0 0 9px rgba(212,175,55,.08),0 22px 60px rgba(0,0,0,.32);padding:28px;display:flex;flex-direction:column;gap:22px}

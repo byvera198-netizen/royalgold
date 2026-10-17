@@ -331,7 +331,29 @@ function authView() {
     </div>`;
   }
 
-  return `<div class="auth-shell auth-signup-shell"><section class="auth-visual"><div class="brand"> <span class="brand-mark">${icons.crown}</span><span class="brand-copy"><span class="brand-name">ROYAL GOLD</span><span class="brand-sub">CLUB PRIVADO</span></span></div><div><div class="eyebrow">Tu mesa. Tu círculo. Tu partida.</div><h1>Juega con<br><span style="color:var(--gold-light)">distinción.</span></h1><p>Un club privado para compartir partidas memorables con tus amigos. Cartas, fichas y conversaciones en una experiencia creada para quedarse.</p></div><div class="auth-glow"></div><div class="muted" style="font-size:10px;letter-spacing:.1em">ROYAL GOLD CLUB · CLUB PRIVADO</div></section><section class="auth-card"><form class="auth-form" id="auth-form"><div class="eyebrow">Acceso de miembros</div><h2>Crea tu membresía</h2><p class="lede">Tu nombre de jugador será tu firma en el club.</p><div class="auth-tabs"><button type="button" data-auth="login">Iniciar sesión</button><button type="button" class="active" data-auth="signup">Registrarse</button></div><div class="field"><label>Nombre de jugador</label><input name="name" required placeholder="Ej. Valentina Vega" autocomplete="name" /></div><div class="field"><label>Correo electrónico</label><input name="email" type="email" required placeholder="tu@email.com" autocomplete="email" /></div><div class="field"><label>Contraseña</label><input name="password" type="password" required minlength="6" placeholder="Mínimo 6 caracteres" autocomplete="new-password" /></div><label class="check-row"><input type="checkbox" required /> Acepto las reglas del club y el modo de fichas virtuales.</label><button class="button primary" type="submit">Crear membresía ${icons.arrow}</button><button class="button ghost" type="button" id="google-login" style="margin-top:10px">Continuar con Google</button>${isHostedProduction ? '' : '<button class="button ghost" type="button" id="demo-login" style="margin-top:10px">Explorar demo local</button>'}<div class="auth-foot">Las fichas son virtuales y no tienen valor monetario.<br>${isHostedProduction ? 'Tu acceso se protege con Supabase Auth.' : 'La demo local guarda tus datos únicamente en este navegador.'}</div></form></section></div>`;
+  return `<div class="auth-reference-shell">
+    <div class="auth-reference-backdrop" role="img" aria-label="Royal Gold Club, club privado de juegos de cartas"></div>
+    <section class="auth-reference-controls" aria-label="Registro de miembros">
+      <form class="auth-reference-form auth-reference-signup-form" id="auth-form">
+        <div class="reference-tabs" role="tablist" aria-label="Tipo de acceso">
+          <button type="button" class="reference-hit reference-login-hit" data-auth="login" aria-label="Iniciar sesión" aria-selected="false">Iniciar sesión</button>
+          <button type="button" class="reference-hit reference-signup-hit active" data-auth="signup" aria-label="Registrarse" aria-selected="true">Registrarse</button>
+        </div>
+        <label class="reference-desktop-label" for="reference-name">Nombre de jugador</label>
+        <label class="reference-mobile-label" for="reference-name">Nombre de jugador</label>
+        <input class="reference-input reference-name" id="reference-name" name="name" required placeholder="Ej. Valentina Vega" autocomplete="name" />
+        <label class="reference-mobile-label" for="reference-email">Correo electrónico</label>
+        <input class="reference-input reference-email reference-signup-email" id="reference-email" name="email" type="email" required placeholder="tu@email.com" autocomplete="email" />
+        <label class="reference-mobile-label" for="reference-password">Contraseña</label>
+        <input class="reference-input reference-password reference-signup-password" id="reference-password" name="password" type="password" required minlength="6" placeholder="Mínimo 6 caracteres" autocomplete="new-password" />
+        <label class="reference-terms"><input type="checkbox" required /> <span>Acepto las reglas del club y el modo de fichas virtuales.</span></label>
+        <button class="reference-hit reference-submit" type="submit" aria-label="Crear membresía">Crear membresía ${icons.arrow}</button>
+        <button class="reference-hit reference-google" type="button" id="google-login" aria-label="Continuar con Google">Continuar con Google</button>
+        ${isHostedProduction ? '' : '<button class="button ghost" type="button" id="demo-login" style="margin-top:10px">Explorar demo local</button>'}
+        <div class="auth-foot">Las fichas son virtuales y no tienen valor monetario.<br>${isHostedProduction ? 'Tu acceso se protege con Supabase Auth.' : 'La demo local guarda tus datos únicamente en este navegador.'}</div>
+      </form>
+    </section>
+  </div>`;
 }
 
 function shell(content) {
