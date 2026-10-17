@@ -502,7 +502,7 @@ function displayCardLabel(label) { return ({ draw2: '+2', wild: 'WILD', wild4: '
 function finishedGameState() { return [state.uno, state.blackjack, state.domino, state.poker, state.rummy, state.crazy].find(game => game?.finished) || null; }
 function finishedGameWinnerNames(game) {
   if (game.kind === 'poker') return game.players.filter(player => game.winnerIds?.includes(player.id)).map(player => player.name);
-  if (game.kind === 'blackjack') return game.players.filter(player => ['win', 'blackjack'].includes(player.result)).map(player => player.name);
+  if (game.kind === 'blackjack') { const winners = game.players.filter(player => ['win', 'blackjack'].includes(player.result)).map(player => player.name); return winners.length ? winners : ['Dealer']; }
   const winner = game.players?.find(player => player.id === game.winnerId);
   return winner?.name ? [winner.name] : [];
 }
