@@ -206,7 +206,7 @@ wss.on('connection', ws => {
     if (type === 'hello') {
       const verifiedUser = store.mode === 'supabase' ? await verifyAccessToken(String(message.authToken || '')) : null;
       if (store.mode === 'supabase' && !verifiedUser?.id) { error(ws, 'Sesión no válida; vuelve a iniciar sesión'); ws.close(1008, 'unauthorized'); return; }
-      client.name = String(verifiedUser?.user_metadata?.display_name || message.name || 'Miembro Royal').slice(0, 40);
+      client.name = String(message.alias || verifiedUser?.user_metadata?.handle || verifiedUser?.user_metadata?.user_name || verifiedUser?.user_metadata?.display_name || message.name || 'Miembro Royal').slice(0, 40);
       client.email = String(verifiedUser?.email || message.email || '').slice(0, 120);
       client.userId = String(verifiedUser?.id || message.userId || '').slice(0, 80);
       const isAdmin = adminEmails.has(client.email.toLowerCase());
