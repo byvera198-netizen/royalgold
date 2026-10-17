@@ -3,6 +3,7 @@ const toastRegion = document.querySelector('#toast-region');
 const SUPABASE_URL = 'https://ypavidhvtxhzohmklgxj.supabase.co';
 const SUPABASE_PUBLISHABLE_KEY = 'sb_publishable_-OZM6jdZSj123ouNufylPQ_NZMJBK8K';
 const ADMIN_EMAIL = 'byvera198@gmail.com';
+const PUBLIC_APP_URL = 'https://royal-gold-club.onrender.com';
 const storage = (() => {
   try {
     const candidate = window.localStorage;
@@ -36,8 +37,22 @@ const state = {
   voice: { localStream: null, peers: new Map(), names: new Map() },
   serverHealth: null,
   social: { profiles: [], friendships: [], invitations: [], loaded: false, loading: false, query: '' },
-  pendingInviteUserId: null
+  pendingInviteUserId: null,
+  pendingJoinCode: new URLSearchParams(location.search).get('table')?.trim().toUpperCase() || null
 };
+
+document.addEventListener('click', event => {
+  const shareButton = event.target.closest('[data-action="share-code"]');
+  if (!shareButton || !state.currentTable?.code) return;
+  event.preventDefault();
+  event.stopImmediatePropagation();
+  const inviteUrl = `${PUBLIC_APP_URL}/?table=${encodeURIComponent(state.currentTable.code)}`;
+  if (navigator.share) {
+    navigator.share({ title: 'Royal Gold Club', text: `Únete a mi mesa ${state.currentTable.name}.`, url: inviteUrl }).catch(() => {});
+  } else {
+    navigator.clipboard?.writeText(inviteUrl).then(() => toast('Enlace de la mesa copiado para compartir', 'success'));
+  }
+}, true);
 
 const icons = {
   crown: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="m3 7 4 3 5-7 5 7 4-3-2 13H5L3 7Z"/><path d="M5 17h14"/></svg>',
@@ -275,7 +290,7 @@ function connectRealtime() {
   if (!state.serverHealth) fetch('/health').then(response => response.ok ? response.json() : null).then(health => { if (health) { state.serverHealth = health; if (state.view === 'settings') render(); } }).catch(() => {});
   try {
     const ws = new WebSocket(realtimeUrl()); state.realtime.ws = ws;
-    ws.addEventListener('open', () => { state.realtime.connected = true; state.realtime.reconnectDelay = 1500; rtSend('hello', { name: state.user.name, email: state.user.email, userId: state.user.id || state.user.userId || '', authToken: state.user.accessToken || '' }); if (state.currentTable?.code) setTimeout(() => { if (state.realtime.connected) rtSend('join_table', { code: state.currentTable.code }); }, 80); });
+    ws.addEventListener('open', () => { state.realtime.connected = true; state.realtime.reconnectDelay = 1500; rtSend('hello', { name: state.user.name, email: state.user.email, userId: state.user.id || state.user.userId || '', authToken: state.user.accessToken || '' }); const inviteCode = state.pendingJoinCode || new URLSearchParams(location.search).get('table')?.trim().toUpperCase(); if (inviteCode) { state.pendingJoinCode = null; history.replaceState({}, document.title, location.pathname); setTimeout(() => { if (state.realtime.connected) rtSend('join_table', { code: inviteCode }); }, 120); } else if (state.currentTable?.code) setTimeout(() => { if (state.realtime.connected) rtSend('join_table', { code: state.currentTable.code }); }, 80); });
     ws.addEventListener('message', event => { try { handleRealtimeMessage(JSON.parse(event.data)); } catch { toast('Respuesta realtime inválida', 'error'); } });
     ws.addEventListener('close', () => { state.realtime.connected = false; state.realtime.ws = null; if (state.user && state.currentTable && !state.realtime.reconnectTimer) { const delay = state.realtime.reconnectDelay; state.realtime.reconnectDelay = Math.min(delay * 1.7, 12000); state.realtime.reconnectTimer = setTimeout(() => { state.realtime.reconnectTimer = null; connectRealtime(); }, delay); } });
     ws.addEventListener('error', () => { state.realtime.connected = false; });
