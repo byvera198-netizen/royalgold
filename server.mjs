@@ -246,6 +246,19 @@ async function recoverInterruptedRoom(room) {
   room.needsRecoveryStart = false;
   await startRoomGame(room, host);
 }
+async function deleteRoom(room, requester, ws) {
+  await store.closeTable(room.table.id);
+  const participants = [...room.clients.values()];
+  rooms.delete(room.table.code);
+  const notification = { code: room.table.code, message: 'La mesa fue eliminada por el anfitrión' };
+  for (const participant of participants) {
+    send(participant.ws, 'table_deleted', notification);
+    participant.roomCode = null;
+    if (participant.userId && !participant.isBot) void setPresence(participant.userId, 'online');
+  }
+  if (!participants.some(participant => participant.id === requester.id)) send(ws, 'table_deleted', notification);
+  requester.roomCode = null;
+}
 
 const wss = new WebSocketServer({ noServer: true, maxPayload: 64 * 1024 });
 wss.on('connection', ws => {
@@ -310,6 +323,17 @@ wss.on('connection', ws => {
       const bot = { ws: null, id: `bot-${randomUUID()}`, name: `Rival de prueba ${String(room.clients.size).padStart(2, '0')}`, email: `bot-${room.clients.size}@local`, roomCode: client.roomCode };
       room.clients.set(bot.id, bot); room.playerEmails.set(bot.email, bot.id); broadcastRoom(room); return;
     }
+    if (type === 'delete_table') {
+      const code = String(message.code || client.roomCode || '').trim().toUpperCase();
+      const targetRoom = rooms.get(code);
+      if (!targetRoom) return error(ws, 'No encontramos esa mesa o ya fue eliminada');
+      const isAdmin = adminEmails.has(client.email.toLowerCase());
+      const isHost = targetRoom.table.hostId ? targetRoom.table.hostId === client.userId : targetRoom.table.host === client.email;
+      if (!isAdmin && !isHost) return error(ws, 'Solo el anfitrión o un administrador puede eliminar la mesa');
+      try { await deleteRoom(targetRoom, client, ws); }
+      catch (deleteError) { return error(ws, deleteError.message || 'No se pudo eliminar la mesa'); }
+      return;
+    }
     const room = rooms.get(client.roomCode);
     if (!room) return error(ws, 'Primero debes entrar a una mesa');
     if (type === 'voice_join') {
@@ -338,21 +362,6 @@ wss.on('connection', ws => {
       return;
     }
     if (type === 'start_game') return startRoomGame(room, client);
-    if (type === 'delete_table') {
-      const isAdmin = adminEmails.has(client.email.toLowerCase());
-      const isHost = room.table.hostId ? room.table.hostId === client.userId : room.table.host === client.email;
-      if (!isAdmin && !isHost) return error(ws, 'Solo el anfitrión o un administrador puede eliminar la mesa');
-      try { await store.closeTable(room.table.id); }
-      catch (deleteError) { return error(ws, deleteError.message || 'No se pudo eliminar la mesa'); }
-      const participants = [...room.clients.values()];
-      rooms.delete(room.table.code);
-      for (const participant of participants) {
-        send(participant.ws, 'table_deleted', { code: room.table.code, message: 'La mesa fue eliminada por el anfitrión' });
-        participant.roomCode = null;
-        if (participant.userId && !participant.isBot) void setPresence(participant.userId, 'online');
-      }
-      return;
-    }
     if (type === 'play_card' || type === 'draw_card') {
       if (room.game?.kind === 'blackjack') return error(ws, 'Usa pedir carta o plantarte en esta mesa');
       if (room.game?.kind === 'domino') return error(ws, 'Usa las acciones de fichas de esta mesa');

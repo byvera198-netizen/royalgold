@@ -495,6 +495,7 @@ function lobbyView() {
 function gameCard(game) { return `<article class="game-card"><div class="game-art ${game.art}"><span class="big-suit">${game.suit}</span>${game.id==='uno'?'<span class="mini-card">7</span><span class="mini-card two">+2</span>':''}</div><div class="game-name">${game.name}</div><div class="game-meta"><span>${game.players}</span><span>${game.time}</span></div><button class="button ghost small game-cta" data-action="play-game" data-game="${game.id}">Jugar ${icons.arrow}</button></article>`; }
 function tableRow(table) { return `<div class="table-row"><div><span class="tag">${table.private ? '● Privada' : '○ Pública'}</span><strong style="display:block;margin-top:8px">${escapeHtml(table.name)}</strong><small>${table.gameName} · ${table.code}</small></div><div><small>Asientos</small><strong>${table.players.length}/${table.maxPlayers}</strong></div><div><small>Estado</small><strong>${table.status === 'waiting' ? 'En espera' : 'En juego'}</strong></div><button class="button dark small" data-action="join-table" data-code="${table.code}">Entrar</button></div>`; }
 
+function tableRow(table) { const canDelete = isOwnTable(table) || state.user?.isAdmin; const statusLabel = table.status === 'waiting' ? 'En espera' : table.status === 'finished' ? 'Finalizada' : 'En juego'; return `<div class="table-row"><div><span class="tag">${table.private ? '● Privada' : '○ Pública'}</span><strong style="display:block;margin-top:8px">${escapeHtml(table.name)}</strong><small>${table.gameName} · ${table.code}</small></div><div><small>Asientos</small><strong>${table.players.length}/${table.maxPlayers}</strong></div><div><small>Estado</small><strong>${statusLabel}</strong></div><div class="table-row-actions"><button class="button dark small" data-action="join-table" data-code="${table.code}">Entrar</button>${canDelete ? `<button class="button danger small" data-action="delete-table" data-code="${table.code}">Eliminar</button>` : ''}</div></div>`; }
 function gamesView() { return `<div class="view"><div class="eyebrow">Catálogo del club</div><h1 class="page-title">Una mesa para cada ánimo.</h1><p class="muted" style="margin:12px 0 0;max-width:530px;line-height:1.6;font-size:13px">Cada juego tiene su propio ritmo, reglas y manera de reunir a la gente. Ya puedes abrir mesas de UNO, Blackjack, Dominó, Texas Hold’em, Rummy y Crazy Eights.</p><section class="section"><div class="games-grid">${gameCatalog.map(gameCard).join('')}</div></section><div class="notice" style="margin-top:25px">${icons.info}<span>La siguiente expansión del club será Mica configurable y más mesas con motores de reglas independientes.</span></div></div>`; }
 function socialPresenceLabel(profile) { return profile.presence === 'playing' ? 'Jugando ahora' : profile.presence === 'online' ? 'En línea' : 'Desconectado'; }
 function friendsView() {
@@ -537,10 +538,11 @@ function ensureTableDeleteAction() {
   const button = document.createElement('button');
   button.className = 'button danger small';
   button.dataset.action = 'delete-table';
+  button.dataset.code = table.code;
   button.textContent = 'Eliminar mesa';
   button.addEventListener('click', () => {
     if (!window.confirm('¿Eliminar esta mesa para todos los jugadores?')) return;
-    if (rtSend('delete_table')) toast('Eliminando mesa…');
+    if (rtSend('delete_table', { code: table.code })) toast('Eliminando mesa…');
     else {
       state.tables = state.tables.filter(item => item.code !== table.code);
       state.currentTable = null; state.view = 'lobby'; save(); render(); toast('Mesa eliminada', 'success');
@@ -631,6 +633,26 @@ document.addEventListener('change',e=>{const select=e.target.closest?.('#create-
 document.addEventListener('click',event=>{const button=event.target.closest?.('[data-nav]');if(!button)return;event.preventDefault();event.stopImmediatePropagation();state.view=button.dataset.nav;state.modal=null;render();},true);
 document.addEventListener('click',e=>{const google=e.target.closest?.('#google-login');if(!google)return;e.preventDefault();startGoogleAuth()});
 document.addEventListener('click',e=>{const demo=e.target.closest?.('#demo-login');if(!demo)return;e.preventDefault();state.user={name:'B. Alvear',email:'byvera198@gmail.com',role:'admin',isAdmin:true,chips:1250,games:0,wins:0};state.view='lobby';state.modal=null;state.currentTable=null;save();toast('Cuenta de desarrollador local iniciada','success');render()});
+document.addEventListener('click', event => {
+  const button = event.target.closest?.('[data-action="delete-table"]');
+  if (!button) return;
+  event.preventDefault();
+  event.stopImmediatePropagation();
+  const code = button.dataset.code || state.currentTable?.code;
+  if (!code || !window.confirm('¿Eliminar esta mesa para todos los jugadores? Esta acción no se puede deshacer.')) return;
+  if (rtSend('delete_table', { code })) {
+    toast('Eliminando mesa…');
+    return;
+  }
+  state.tables = state.tables.filter(item => item.code !== code);
+  if (state.currentTable?.code === code) {
+    state.currentTable = null;
+    state.view = 'lobby';
+  }
+  save();
+  render();
+  toast('Mesa eliminada', 'success');
+}, true);
 render();
 restoreOAuthSession();
 restoreRemoteSession();

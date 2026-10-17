@@ -99,6 +99,7 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 .game-card .game-cta { width:100%; margin-top:14px; }
 .table-list { display:grid; gap:10px; }
 .table-row { display:grid; grid-template-columns:1.6fr .8fr .65fr auto; gap:18px; align-items:center; padding:15px 17px; background:#151515; border:1px solid rgba(255,255,255,.07); border-radius:12px; }
+.table-row-actions { display:flex; align-items:center; justify-content:flex-end; flex-wrap:wrap; gap:8px; }
 .table-row strong { font-size:13px; font-weight:600; } .table-row small { color:#77736b; font-size:10px; display:block; margin-top:4px; }
 .tag { display:inline-flex; align-items:center; gap:5px; width:max-content; padding:4px 7px; border-radius:5px; color:#a4d5c5; background:rgba(7,91,67,.25); font-size:9px; }
 .empty-state { border:1px dashed rgba(255,255,255,.13); border-radius:14px; padding:28px; color:#858179; text-align:center; font-size:12px; }
