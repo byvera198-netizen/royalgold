@@ -142,6 +142,47 @@ button:focus-visible, input:focus-visible, select:focus-visible { outline: 2px s
 @media (max-width: 1050px){.games-grid{grid-template-columns:repeat(2,1fr)}.dashboard-grid,.subpage-grid{grid-template-columns:1fr}.game-table{min-height:610px}.side-panel{width:190px}}
 @media (max-width: 760px){.app-shell{display:block}.sidebar{height:auto;position:static;display:block;padding:15px 17px;border-right:0;border-bottom:1px solid rgba(255,255,255,.07)}.sidebar .brand{display:inline-flex}.sidebar .nav-label,.sidebar-spacer,.user-chip{display:none}.nav{display:flex;flex-direction:row;overflow:auto;margin-top:16px;gap:4px}.nav button{white-space:nowrap;padding:9px 10px;font-size:11px}.nav button span:last-child{display:none}.main{padding:20px 16px 35px}.topbar{margin-bottom:22px}.breadcrumb{font-size:10px}.wallet-pill{padding:8px}.wallet-pill span{display:none}.lobby-header{display:block}.lobby-actions{margin-top:18px}.hero-card{padding:25px;min-height:300px}.hero-ornament{right:-70px;opacity:.5}.games-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}.game-card{padding:12px;min-height:175px}.game-art{margin:-12px -12px 10px;height:70px}.game-art .big-suit{font-size:55px}.game-name{font-size:15px}.table-row{grid-template-columns:1fr auto}.table-row > :nth-child(2),.table-row > :nth-child(3){display:none}.form-grid{grid-template-columns:1fr}.field.full{grid-column:auto}.modal{padding:21px}.auth-shell{display:block}.auth-visual{min-height:430px;padding:30px 24px}.auth-visual h1{font-size:53px;margin:65px 0 17px}.auth-card{min-height:52vh;padding:28px 22px}.game-table{min-height:650px;border-width:5px}.table-seat{font-size:9px}.seat-2{right:10px;top:37%}.seat-3{left:10px;top:37%}.seat-4{right:7%;bottom:118px}.seat-5{left:7%;bottom:118px}.seat-avatar{width:37px;height:37px}.uno-board{transform:scale(.85)}.player-hand{gap:2px;bottom:30px;max-width:96%}.uno-card{width:40px;height:60px;font-size:18px;border-width:2px}.turn-timer{bottom:9px;right:12px}.table-controls{position:relative;z-index:6}.seats-grid{grid-template-columns:repeat(2,1fr)}.invite-code{flex-wrap:wrap}.invite-code code{font-size:18px}.invite-code .button{flex:1}.subpage-grid{margin-top:20px}.metric-row{grid-template-columns:repeat(3,1fr)} }
 @media (prefers-reduced-motion: reduce){*,*::before,*::after{animation-duration:.01ms!important;transition-duration:.01ms!important;scroll-behavior:auto!important}}
+
+/* Royal Gold reference landing screen */
+.auth-reference-shell{position:relative;isolation:isolate;min-height:100vh;min-height:100svh;overflow:hidden;background:#050505;color:var(--ivory)}
+.auth-reference-backdrop{position:absolute;inset:0;z-index:-1;background:#050505 url('/assets/royal-gold-login.png') center center / 100% 100% no-repeat}
+.auth-reference-controls{position:absolute;inset:0;pointer-events:none}
+.auth-reference-form{position:absolute;inset:0;margin:0;pointer-events:none}
+.reference-tabs{position:absolute;top:30.65%;left:61.2%;width:30.8%;height:6.9%;display:flex;pointer-events:none}
+.reference-hit{position:absolute;display:flex;align-items:center;justify-content:center;border:0;background:transparent;color:transparent;cursor:pointer;pointer-events:auto;text-shadow:none}
+.reference-hit:focus-visible{outline:2px solid var(--gold-light);outline-offset:3px;border-radius:12px}
+.reference-login-hit,.reference-signup-hit{position:relative;flex:1;height:100%;font-size:clamp(11px,1vw,16px);font-weight:700}
+.reference-input{position:absolute;left:61.25%;width:30.3%;height:5.65%;padding:0 3.1%;border:0;background:transparent;color:#f8f2df;font-size:clamp(12px,1vw,17px);line-height:1;caret-color:var(--gold-light);pointer-events:auto}
+.reference-input::placeholder{color:transparent}
+.reference-input:focus{outline:2px solid rgba(245,215,110,.9);outline-offset:3px;border-radius:12px;background:rgba(0,0,0,.12)}
+.reference-email{top:43.95%}
+.reference-password{top:55.7%}
+.reference-forgot{top:61.55%;left:78.7%;width:12.5%;height:3.5%;font-size:clamp(9px,.78vw,14px);font-weight:600}
+.reference-submit{top:66.7%;left:61.25%;width:30.3%;height:7.25%;font-size:clamp(12px,1vw,17px);font-weight:800}
+.reference-google{top:78.8%;left:61.25%;width:30.3%;height:6.35%;font-size:clamp(11px,.95vw,16px);font-weight:700}
+.reference-submit svg{width:20px;height:20px;flex:none}
+.reference-mobile-label{display:none}
+
+@media (max-width:760px){
+  .auth-reference-shell{min-height:100svh;overflow:auto;padding:42svh 18px 34px;background:radial-gradient(circle at 50% 0,rgba(245,215,110,.18),transparent 26rem),#070707}
+  .auth-reference-backdrop{inset:0 0 auto;height:43svh;background-repeat:no-repeat;background-size:auto 90svh;background-position:left top;box-shadow:0 20px 45px rgba(0,0,0,.72)}
+  .auth-reference-controls{position:relative;inset:auto;pointer-events:auto}
+  .auth-reference-form{position:relative;inset:auto;width:min(430px,100%);margin:0 auto;padding:22px 20px 20px;border:1px solid rgba(245,215,110,.3);border-radius:22px;background:linear-gradient(145deg,rgba(22,20,14,.98),rgba(7,7,7,.98));box-shadow:0 20px 60px rgba(0,0,0,.62),inset 0 1px rgba(255,255,255,.08);pointer-events:auto}
+  .auth-reference-form::before{content:'ACCESO DE MIEMBROS';display:block;margin:0 0 7px;color:var(--gold);font-size:10px;font-weight:700;letter-spacing:.22em;text-transform:uppercase;text-align:center}
+  .auth-reference-form::after{content:'Las fichas son virtuales y no tienen valor monetario.';display:block;margin:18px 0 0;color:#77736b;font-size:10px;line-height:1.5;text-align:center}
+  .reference-tabs{position:relative;top:auto;left:auto;width:100%;height:46px;display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:3px;margin:0 0 18px;border:1px solid rgba(245,215,110,.28);border-radius:11px;background:rgba(0,0,0,.45);pointer-events:auto}
+  .reference-hit{position:relative;inset:auto!important;width:auto!important;height:auto!important;color:var(--gold-light);font-size:12px;font-weight:700;border-radius:8px}
+  .reference-login-hit{background:linear-gradient(135deg,var(--gold-light),var(--gold));color:#211a08}
+  .reference-signup-hit{color:#aaa69a}
+  .reference-mobile-label{display:block;margin:0 0 6px;color:#c8c0ae;font-size:11px;font-weight:600}
+  .reference-input{position:relative;left:auto;top:auto;width:100%;height:48px;margin:0 0 15px;padding:0 14px;border:1px solid rgba(245,215,110,.32);border-radius:10px;background:rgba(0,0,0,.32);font-size:14px;line-height:48px}
+  .reference-input::placeholder{color:#8e8a81}
+  .reference-input:focus{background:rgba(0,0,0,.5)}
+  .reference-forgot{display:flex;justify-content:flex-end;width:100%!important;height:auto!important;margin:-5px 0 8px;color:var(--gold-light);font-size:11px;text-align:right}
+  .reference-submit,.reference-google{display:flex;width:100%!important;height:49px!important;margin:0 0 10px;border:1px solid rgba(245,215,110,.55);border-radius:10px;font-size:13px}
+  .reference-submit{color:#211a08;background:linear-gradient(135deg,var(--gold-light),var(--gold));box-shadow:0 8px 24px rgba(212,175,55,.2),inset 0 1px rgba(255,255,255,.7)}
+  .reference-google{color:var(--gold-light);background:rgba(0,0,0,.35)}
+}
 /* Blackjack / 21 */
 .blackjack-table{min-height:520px;background:radial-gradient(circle at 50% 45%,#0d7555 0,#07543f 42%,#043b2d 100%);border:1px solid rgba(212,175,55,.46);border-radius:22px;box-shadow:inset 0 0 0 9px rgba(212,175,55,.08),0 22px 60px rgba(0,0,0,.32);padding:28px;display:flex;flex-direction:column;gap:22px}
 .blackjack-header{display:flex;justify-content:space-between;align-items:center;gap:14px;color:var(--ivory)}
