@@ -296,8 +296,13 @@ wss.on('connection', ws => {
       send(ws, 'table_created', { table: publicTable(room) }); broadcastRoom(room); if (solo) await startRoomGame(room, client); return;
     }
     if (type === 'join_table') {
-      const code = String(message.code || '').toUpperCase(); const room = rooms.get(code);
-      if (!room) return error(ws, 'No encontramos una mesa con ese código');
+      const code = String(message.code || '').trim().toUpperCase(); let room = rooms.get(code);
+      if (!room) {
+        const storedTable = await store.findTableByCode(code);
+        if (!storedTable) return error(ws, 'No encontramos una mesa con ese código');
+        room = { table: storedTable, clients: new Map(), playerEmails: new Map(), game: null, roundId: null, botRunning: false, needsRecoveryStart: storedTable.status === 'playing' };
+        rooms.set(code, room);
+      }
       if (new Date(room.table.expiresAt) <= new Date()) { rooms.delete(code); await store.closeTable(room.table.id); return error(ws, 'El código de esta mesa ya caducó'); }
       const returningId = client.email ? room.playerEmails.get(client.email) : null;
       const existing = returningId ? room.clients.get(returningId) : null;
