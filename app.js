@@ -234,6 +234,17 @@ async function answerFollow(profileId, status) {
     await loadSocial();
   } catch (error) { toast(error.message || 'No se pudo responder la solicitud', 'error'); }
 }
+async function removeFriend(profileId) {
+  const relationship = socialRelationship(profileId);
+  if (!relationship || relationship.status !== 'accepted') return;
+  if (!window.confirm('¿Eliminar a este jugador de tu círculo?')) return;
+  try {
+    await supabaseRest(`friendships?requester_id=eq.${encodeURIComponent(relationship.requester_id)}&addressee_id=eq.${encodeURIComponent(relationship.addressee_id)}`, { method: 'DELETE' });
+    toast('Jugador eliminado de tu círculo', 'success');
+    state.social.loaded = false;
+    await loadSocial();
+  } catch (error) { toast(error.message || 'No se pudo eliminar al jugador', 'error'); }
+}
 async function sendGameInvite(profileId) {
   const activeTable = state.currentTable && isOwnTable(state.currentTable) && ['waiting', 'playing'].includes(state.currentTable.status) ? state.currentTable : null;
   if (activeTable) return createGameInvite(profileId, activeTable);
@@ -565,8 +576,9 @@ function friendsView() {
     const incomingFollow = relationship?.requester_id === profile.id && relationship?.addressee_id === state.user?.id && relationship?.status === 'pending';
     const followLabel = relationship?.status === 'accepted' ? 'Siguiendo' : incomingFollow ? 'Aceptar' : relationship?.status === 'pending' ? 'Pendiente' : 'Seguir';
     const followAction = incomingFollow ? 'accept-follow' : relationship?.status === 'accepted' || relationship?.status === 'pending' ? '' : 'follow-player';
+    const removeAction = relationship?.status === 'accepted' ? `<button class="button danger small" data-action="remove-friend" data-user-id="${profile.id}">Eliminar</button>` : '';
     const status = socialPresenceLabel(profile);
-    return `<div class="friend-row"><div class="avatar">${initials(profile.handle || profile.display_name)}</div><div class="row-main"><strong>${escapeHtml(profile.handle || profile.display_name)}</strong><span>${escapeHtml(profile.display_name || 'Miembro Royal')} · @${escapeHtml(profile.handle || 'member')} · ${status}${profile.presence === 'playing' ? ` · ${escapeHtml(profile.current_game || 'partida')}` : ''}</span></div><span class="${profile.presence === 'offline' ? 'offline-dot' : 'online-dot'}"></span><button class="button ghost small" ${followAction ? `data-action="${followAction}" data-user-id="${profile.id}"` : 'disabled'}>${followLabel}</button><button class="button dark small" data-action="invite-player" data-user-id="${profile.id}">Invitar a jugar</button></div>`;
+    return `<div class="friend-row"><div class="avatar">${initials(profile.handle || profile.display_name)}</div><div class="row-main"><strong>${escapeHtml(profile.handle || profile.display_name)}</strong><span>${escapeHtml(profile.display_name || 'Miembro Royal')} · @${escapeHtml(profile.handle || 'member')} · ${status}${profile.presence === 'playing' ? ` · ${escapeHtml(profile.current_game || 'partida')}` : ''}</span></div><span class="${profile.presence === 'offline' ? 'offline-dot' : 'online-dot'}"></span><button class="button ghost small" ${followAction ? `data-action="${followAction}" data-user-id="${profile.id}"` : 'disabled'}>${followLabel}</button><button class="button dark small" data-action="invite-player" data-user-id="${profile.id}">Invitar a jugar</button>${removeAction}</div>`;
   }).join('') : '<div class="empty-state">Todavía no hay otros jugadores para mostrar.</div>';
   const inviteRows = incoming.length ? incoming.map(invitation => `<div class="friend-row"><div class="avatar">${initials(socialProfile(invitation.inviter_id)?.display_name || 'RG')}</div><div class="row-main"><strong>${profileName(invitation.inviter_id)}</strong><span>Te invita a una mesa de juego · ${formatDate(invitation.created_at)}</span></div><button class="button primary small" data-action="accept-game-invite" data-invitation-id="${invitation.id}">Aceptar</button><button class="button dark small" data-action="decline-game-invite" data-invitation-id="${invitation.id}">Rechazar</button></div>`).join('') : '<div class="empty-state">No tienes invitaciones pendientes.<br><span style="font-size:10px">Cuando alguien te invite, aparecerá aquí.</span></div>';
   return `<div class="view"><div class="eyebrow">Tu círculo</div><h1 class="page-title">Amigos</h1><p class="muted" style="margin-top:10px;max-width:630px;line-height:1.6">Encuentra jugadores, sigue a tu círculo y envía solicitudes de partida cuando estén disponibles.</p><div class="subpage-grid"><section class="panel"><div class="section-head"><h3>Jugadores del club</h3><button class="button ghost small" data-action="refresh-social">Actualizar</button></div><div class="field" style="margin-bottom:12px"><input id="social-search" value="${escapeHtml(state.social.query)}" placeholder="Buscar por nombre o @usuario" autocomplete="off" /></div>${profileRows}</section><section class="panel"><h3>Solicitudes de partida</h3>${inviteRows}<div class="chat-divider" style="margin-top:18px">Tu círculo</div>${relationships.filter(item => item.status === 'accepted').length ? `<p class="muted" style="font-size:11px;line-height:1.6">Tienes ${relationships.filter(item => item.status === 'accepted').length} conexión${relationships.filter(item => item.status === 'accepted').length === 1 ? '' : 'es'} aceptada${relationships.filter(item => item.status === 'accepted').length === 1 ? '' : 's'}.</p>` : '<p class="muted" style="font-size:11px;line-height:1.6">Sigue a otros jugadores para construir tu comunidad.</p>'}</section></div></div>`;
@@ -588,7 +600,7 @@ function ensureTableDeleteAction() {
   const table = state.currentTable;
   if (!table || !state.user || state.view === 'lobby') return;
   const isHost = table.hostId && state.user.id ? table.hostId === state.user.id : table.host === state.user.email;
-  if (!isHost && !state.user.isAdmin) return;
+  if (!isHost) return;
   const host = document.querySelector('.invite-code') || document.querySelector('.table-top');
   if (!host || host.querySelector('[data-action="delete-table"]')) return;
   const button = document.createElement('button');
@@ -652,6 +664,7 @@ document.addEventListener('click', async event => {
   const action = button.dataset.action;
   if (action === 'follow-player') return followPlayer(button.dataset.userId);
   if (action === 'accept-follow') return answerFollow(button.dataset.userId, 'accepted');
+  if (action === 'remove-friend') return removeFriend(button.dataset.userId);
   if (action === 'invite-player') return sendGameInvite(button.dataset.userId);
   if (action === 'refresh-social') { state.social.loaded = false; return loadSocial(); }
   if (action === 'accept-game-invite' || action === 'decline-game-invite') {
@@ -695,6 +708,11 @@ document.addEventListener('click', event => {
   event.preventDefault();
   event.stopImmediatePropagation();
   const code = button.dataset.code || state.currentTable?.code;
+  const table = state.tables.find(item => item.code === code) || state.currentTable;
+  if (!isOwnTable(table)) {
+    toast('Solo el creador puede eliminar la mesa', 'error');
+    return;
+  }
   if (!code || !window.confirm('¿Eliminar esta mesa para todos los jugadores? Esta acción no se puede deshacer.')) return;
   if (rtSend('delete_table', { code })) {
     toast('Eliminando mesa…');
@@ -709,6 +727,30 @@ document.addEventListener('click', event => {
   render();
   toast('Mesa eliminada', 'success');
 }, true);
+const originalTableRow = tableRow;
+tableRow = function (table) {
+  const wasAdmin = Boolean(state.user?.isAdmin);
+  if (wasAdmin) state.user.isAdmin = false;
+  try { return originalTableRow(table); }
+  finally { if (wasAdmin && state.user) state.user.isAdmin = true; }
+};
+const originalEnsureSoloOption = ensureSoloOption;
+ensureSoloOption = function () {
+  originalEnsureSoloOption();
+  const leaveButton = document.querySelector('.view.waiting [data-nav="lobby"]');
+  if (leaveButton) {
+    delete leaveButton.dataset.nav;
+    leaveButton.dataset.action = 'leave-table';
+    leaveButton.textContent = '← Salir de la mesa';
+    leaveButton.addEventListener('click', async () => {
+      if (state.voiceOn) await toggleVoice();
+      rtSend('leave_table');
+      state.view = 'lobby';
+      state.modal = null;
+      render();
+    }, { once: true });
+  }
+};
 render();
 restoreOAuthSession();
 restoreRemoteSession();

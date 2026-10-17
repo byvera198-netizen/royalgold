@@ -331,18 +331,17 @@ wss.on('connection', ws => {
     if (type === 'delete_table') {
       const code = String(message.code || client.roomCode || '').trim().toUpperCase();
       const targetRoom = rooms.get(code);
-      const isAdmin = adminEmails.has(client.email.toLowerCase());
       if (!targetRoom) {
         const storedTable = await store.findTableByCode(code);
         if (!storedTable) return send(ws, 'table_deleted', { code, message: 'La mesa ya no estaba disponible y se retiró de tu listado' });
         const storedIsHost = storedTable.hostId ? storedTable.hostId === client.userId : storedTable.host === client.email;
-        if (!isAdmin && !storedIsHost) return error(ws, 'Solo el anfitrión o un administrador puede eliminar la mesa');
+        if (!storedIsHost) return error(ws, 'Solo el creador puede eliminar la mesa');
         try { await store.closeTable(storedTable.id); }
         catch (deleteError) { return error(ws, deleteError.message || 'No se pudo eliminar la mesa'); }
         return send(ws, 'table_deleted', { code, message: 'Mesa eliminada correctamente' });
       }
       const isHost = targetRoom.table.hostId ? targetRoom.table.hostId === client.userId : targetRoom.table.host === client.email;
-      if (!isAdmin && !isHost) return error(ws, 'Solo el anfitrión o un administrador puede eliminar la mesa');
+      if (!isHost) return error(ws, 'Solo el creador puede eliminar la mesa');
       try { await deleteRoom(targetRoom, client, ws); }
       catch (deleteError) { return error(ws, deleteError.message || 'No se pudo eliminar la mesa'); }
       return;
