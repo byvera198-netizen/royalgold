@@ -65,7 +65,7 @@ export function validMeld(cards) {
 export function createGame(players) {
   if (players.length < 2 || players.length > 4) throw new Error('Rummy admite entre 2 y 4 jugadores');
   const cards = shuffle(deck());
-  const handSize = players.length === 2 ? 10 : 7;
+  const handSize = 7;
   const game = {
     kind: 'rummy',
     players: players.map(({ id, name }) => ({ id, name, hand: [], melds: [] })),
