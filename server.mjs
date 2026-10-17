@@ -94,7 +94,7 @@ const botDelay = ms => new Promise(resolve => setTimeout(resolve, ms));
 function botForTurn(room) {
   const game = room.game;
   if (!game || game.finished) return null;
-  const playerId = game.kind === 'blackjack' ? game.players[game.activePlayer]?.id : game.kind === 'crazy' ? game.players[game.currentPlayer]?.id : game.players[game.currentPlayer]?.id;
+  const playerId = game.kind === 'blackjack' ? game.players[game.activePlayer]?.id : game.kind === 'uno' ? game.players[game.turn]?.id : game.players[game.currentPlayer]?.id;
   const client = playerId ? room.clients.get(playerId) : null;
   return client?.isBot ? client : null;
 }
