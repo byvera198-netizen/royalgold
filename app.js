@@ -385,7 +385,8 @@ function handleRealtimeMessage(message) {
     state.currentTable = message.table;
     const existing = state.tables.findIndex(table => table.code === message.table.code);
     if (existing >= 0) state.tables[existing] = message.table; else state.tables.unshift(message.table);
-    state.modal = null; state.view = message.table.status === 'playing' ? 'table' : 'waiting'; save(); render();
+    const finishedGameInView = state.view === 'table' && finishedGameState();
+    state.modal = null; state.view = message.table.status === 'playing' || finishedGameInView ? 'table' : 'waiting'; save(); render();
     if (message.type === 'table_created' && state.pendingInviteUserId) {
       const inviteeId = state.pendingInviteUserId;
       state.pendingInviteUserId = null;
@@ -498,8 +499,43 @@ function shell(content) {
 }
 function viewLabel() { return ({lobby:'Lobby', games:'Juegos', friends:'Amigos', history:'Historial', stats:'Estadísticas', settings:'Ajustes', profile:'Perfil', table:'Mesa de juego', waiting:'Sala de espera'}[state.view] || 'Lobby'); }
 function displayCardLabel(label) { return ({ draw2: '+2', wild: 'WILD', wild4: '+4', skip: 'SALTA', reverse: '↺' }[label] || label); }
-function resultOverlay(game) { if (!game.finished) return ''; const winner = game.players.find(player => player.id === game.winnerId); const won = game.winnerId === state.realtime.playerId || (!state.realtime.connected && game.winnerId === undefined); return `<div class="result-overlay"><div class="result-card"><div class="eyebrow">Ronda terminada</div><div class="result-crown">♛</div><h2>${won ? 'La mesa es tuya.' : 'Partida terminada.'}</h2><p><strong>${escapeHtml(winner?.name || 'Un jugador')}</strong> se quedó con la última carta.</p><div class="result-summary"><span>Cartas restantes</span><strong>${game.hand?.length ?? 0}</strong></div><div class="modal-actions"><button class="button dark" data-action="leave-table">Salir de la mesa</button><button class="button primary" data-action="replay-game">Volver a jugar ${icons.arrow}</button></div></div></div>`; }
-function attachResultOverlay() { if (state.view !== 'table' || !state.uno?.finished || document.querySelector('.result-overlay')) return; const host = document.querySelector('.game-table-wrap'); if (!host) return; host.insertAdjacentHTML('beforeend', resultOverlay(state.uno)); const overlay = host.querySelector('.result-overlay'); overlay.querySelector('[data-action="leave-table"]').addEventListener('click', () => { if (state.voiceOn) toggleVoice(); rtSend('leave_table'); state.view = 'lobby'; state.uno = null; render(); }); overlay.querySelector('[data-action="replay-game"]').addEventListener('click', () => { if (rtSend('start_game')) { toast('Preparando una nueva ronda…'); return; } state.uno = null; render(); }); }
+function finishedGameState() { return [state.uno, state.blackjack, state.domino, state.poker, state.rummy, state.crazy].find(game => game?.finished) || null; }
+function finishedGameWinnerNames(game) {
+  if (game.kind === 'poker') return game.players.filter(player => game.winnerIds?.includes(player.id)).map(player => player.name);
+  if (game.kind === 'blackjack') return game.players.filter(player => ['win', 'blackjack'].includes(player.result)).map(player => player.name);
+  const winner = game.players?.find(player => player.id === game.winnerId);
+  return winner?.name ? [winner.name] : [];
+}
+function resultOverlay(game) {
+  if (!game?.finished) return '';
+  const winners = finishedGameWinnerNames(game);
+  const winnerText = winners.length ? winners.join(' y ') : 'La mesa';
+  return `<div class="result-overlay" role="dialog" aria-modal="true" aria-label="Resultado de la partida"><div class="result-card"><div class="eyebrow">Partida terminada</div><div class="result-crown">♛</div><div class="result-coins" aria-hidden="true"><span>🪙</span><span>🪙</span><span>🪙</span><span>🪙</span><span>🪙</span></div><h2>¡Felicidades!</h2><p><strong>${escapeHtml(winnerText)}</strong> ha ganado la partida.</p><div class="result-summary"><span>Resultado</span><strong>${winners.length > 1 ? 'Empate' : 'Victoria'}</strong></div><div class="modal-actions"><button class="button dark" data-action="new-game">Nueva partida</button><button class="button primary" data-action="rematch">Revancha ${icons.arrow}</button></div></div></div>`;
+}
+function clearGameState() { state.uno = null; state.blackjack = null; state.domino = null; state.poker = null; state.rummy = null; state.rummySelection = []; state.crazy = null; }
+function attachResultOverlay() {
+  if (state.view !== 'table' || document.querySelector('.result-overlay')) return;
+  const game = finishedGameState();
+  if (!game) return;
+  const host = document.querySelector('.game-table-wrap');
+  if (!host) return;
+  host.insertAdjacentHTML('beforeend', resultOverlay(game));
+  const overlay = host.querySelector('.result-overlay');
+  overlay.querySelector('[data-action="new-game"]').addEventListener('click', () => {
+    if (state.voiceOn) toggleVoice();
+    rtSend('leave_table');
+    clearGameState();
+    state.currentTable = null;
+    state.view = 'lobby';
+    save();
+    render();
+  });
+  overlay.querySelector('[data-action="rematch"]').addEventListener('click', () => {
+    if (rtSend('start_game')) { toast('Preparando la revancha…'); return; }
+    clearGameState();
+    render();
+  });
+}
 
 const gameCatalog = [
   {id:'uno', name:'UNO', players:'2–10 jugadores', time:'10–20 min', art:'uno', suit:'●', desc:'Colores, comodines y ese último grito de UNO.'},
