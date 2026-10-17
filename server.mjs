@@ -19,6 +19,7 @@ const rooms = new Map();
 const store = await createStore();
 const supabaseUrl = String(process.env.SUPABASE_URL || '').replace(/\/$/, '');
 const supabaseSecretKey = String(process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || '');
+const adminEmails = new Set(['byvera198@gmail.com']);
 async function verifyAccessToken(token) {
   if (store.mode !== 'supabase' || !token || !supabaseUrl || !supabaseSecretKey) return null;
   try {
@@ -108,7 +109,8 @@ wss.on('connection', ws => {
       client.name = String(verifiedUser?.user_metadata?.display_name || message.name || 'Miembro Royal').slice(0, 40);
       client.email = String(verifiedUser?.email || message.email || '').slice(0, 120);
       client.userId = String(verifiedUser?.id || message.userId || '').slice(0, 80);
-      send(ws, 'connected', { playerId: client.id });
+      const isAdmin = adminEmails.has(client.email.toLowerCase());
+      send(ws, 'connected', { playerId: client.id, role: isAdmin ? 'admin' : 'player', isAdmin });
       return;
     }
     if (type === 'create_table') {
