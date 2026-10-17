@@ -12,7 +12,8 @@ Abre `http://localhost:4173`. También se puede abrir en otra pestaña del mismo
 
 ## Qué está funcionando en esta fase
 
-- Registro e inicio de sesión con Supabase Auth en producción; la demo local continúa disponible en `localhost`.
+- Registro e inicio de sesión con Supabase Auth en producción, incluido el retorno de sesión de Google; la demo local continúa disponible en `localhost`.
+- `byvera198@gmail.com` se reconoce como cuenta de desarrollador y administradora dentro de la aplicación; el correo debe coincidir exactamente.
 - Lobby responsive, catálogo inicial y estados vacíos reales.
 - Creación de mesas, códigos únicos `ROYAL-XXXXXX`, unión por código, sala de espera y copia/compartir.
 - Canal realtime en `/realtime`: el servidor valida creación/unión, anfitrión, límite de asientos, turnos y jugadas de UNO. Abre dos pestañas en `http://localhost:4173` para probarlo.
@@ -68,3 +69,12 @@ El backend realtime se prepara para Render porque necesita un proceso Node.js pe
 Antes del primer despliegue ejecuta la migración de `supabase/migrations/001_initial_schema.sql`, crea los perfiles de Auth y verifica `/health` con `storage: "supabase"`. En producción el servidor se detiene si faltan las variables de Supabase, evitando un fallback accidental a archivos locales. No subas `.env` ni claves al repositorio.
 
 La identidad de desarrollo local principal configurada para el proyecto es `byvera198@gmail.com`. Esta referencia no contiene contraseña, token ni acceso a servicios externos; la conexión real a Supabase requerirá las credenciales del proyecto.
+
+### Activar Google OAuth
+
+1. En Google Cloud Console crea un cliente OAuth de tipo **Web application**.
+2. En Supabase abre **Authentication → Providers → Google**, activa el proveedor y pega el Client ID y Client Secret de Google.
+3. En Google añade como URI de redirección autorizada la que muestra Supabase para este proyecto. Para Royal Gold, añade también `https://royal-gold-club.onrender.com` en los redirects permitidos de Supabase.
+4. Guarda el proveedor y prueba **Continuar con Google** en la pantalla de acceso. El botón ya está publicado en el código; sin estas credenciales Supabase no puede completar el flujo.
+
+El Client Secret de Google es confidencial: debe permanecer únicamente en Supabase y nunca en el repositorio ni en `app.js`.
