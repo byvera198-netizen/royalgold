@@ -22,6 +22,7 @@ export async function createStore() {
   return {
     mode: 'file-development',
     listTables: () => tables.filter(table => new Date(table.expiresAt) > new Date() && table.status !== 'closed'),
+    findTableByCode: code => tables.find(table => table.code === code && table.status !== 'closed') || null,
     saveTable: async table => { const index = tables.findIndex(item => item.id === table.id); if (index >= 0) tables[index] = structuredClone(table); else tables.push(structuredClone(table)); await write(); },
     closeTable: async id => { const table = tables.find(item => item.id === id); if (table) { table.status = 'closed'; table.closedAt = new Date().toISOString(); await write(); } }
   };
@@ -78,6 +79,7 @@ async function createSupabaseStore(url, key) {
   return {
     mode: 'supabase',
     listTables: async () => (await request('game_tables?select=*,game_catalog(name)&status=in.(waiting,playing,finished)&order=created_at.desc')).map(toTable),
+    findTableByCode: async code => { const rows = await request(`game_tables?select=*,game_catalog(name)&code=eq.${encodeURIComponent(code)}&status=in.(waiting,playing,finished)&limit=1`); return rows[0] ? toTable(rows[0]) : null; },
     saveTable: async table => { await request('game_tables', { method: 'POST', headers: { Prefer: 'resolution=merge-duplicates,return=minimal' }, body: JSON.stringify(toRow(table)) }); },
     closeTable: async id => { await request(`game_tables?id=eq.${encodeURIComponent(id)}`, { method: 'PATCH', headers: { Prefer: 'return=minimal' }, body: JSON.stringify({ status: 'closed', closed_at: new Date().toISOString() }) }); }
   };
