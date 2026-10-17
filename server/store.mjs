@@ -7,10 +7,10 @@ const filePath = join(root, 'data', 'tables.json');
 
 export async function createStore() {
   const supabaseUrl = String(process.env.SUPABASE_URL || '').replace(/\/$/, '');
-  const serviceRoleKey = String(process.env.SUPABASE_SERVICE_ROLE_KEY || '');
-  const supabaseReady = supabaseUrl.startsWith('https://') && !supabaseUrl.includes('your-project') && serviceRoleKey.length > 30 && !serviceRoleKey.includes('your-service-role');
-  if (supabaseReady) return createSupabaseStore(supabaseUrl, serviceRoleKey);
-  if (process.env.NODE_ENV === 'production') throw new Error('Producción requiere SUPABASE_URL y SUPABASE_SERVICE_ROLE_KEY');
+  const secretKey = String(process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || '');
+  const supabaseReady = supabaseUrl.startsWith('https://') && !supabaseUrl.includes('your-project') && secretKey.length > 30 && !secretKey.includes('your-secret') && !secretKey.includes('your-service-role');
+  if (supabaseReady) return createSupabaseStore(supabaseUrl, secretKey);
+  if (process.env.NODE_ENV === 'production') throw new Error('Producción requiere SUPABASE_URL y SUPABASE_SECRET_KEY');
   await mkdir(dirname(filePath), { recursive: true });
   let tables = [];
   try { tables = JSON.parse(await readFile(filePath, 'utf8')); } catch (error) { if (error.code !== 'ENOENT') throw error; }
