@@ -71,7 +71,7 @@ function syncRoomPresence(room) {
   const presence = room.table.status === 'playing' ? 'playing' : 'online';
   for (const participant of room.clients.values()) if (participant.userId && !participant.isBot) void setPresence(participant.userId, presence);
 }
-for (const table of await store.listTables()) rooms.set(table.code, { table, clients: new Map(), playerEmails: new Map(), game: null, roundId: null });
+for (const table of await store.listTables()) rooms.set(table.code, { table, clients: new Map(), playerEmails: new Map(), game: null, roundId: null, needsRecoveryStart: table.status === 'playing' });
 const heartbeatMs = 30000;
 
 function roomCode() {
@@ -239,6 +239,13 @@ async function startRoomGame(room, client) {
   catch (gameError) { room.table.status = 'waiting'; return error(client.ws, gameError.message); }
   await store.saveTable(room.table); syncRoomPresence(room); broadcastRoom(room); broadcastGame(room); void runBotTurns(room);
 }
+async function recoverInterruptedRoom(room) {
+  if (!room.needsRecoveryStart || room.game || room.clients.size < 2) return;
+  const host = [...room.clients.values()].find(participant => room.table.hostId ? participant.userId === room.table.hostId : participant.email === room.table.host);
+  if (!host) return;
+  room.needsRecoveryStart = false;
+  await startRoomGame(room, host);
+}
 
 const wss = new WebSocketServer({ noServer: true, maxPayload: 64 * 1024 });
 wss.on('connection', ws => {
@@ -269,7 +276,7 @@ wss.on('connection', ws => {
       if (store.mode === 'supabase' && !client.userId) return error(ws, 'Inicia sesión para crear una mesa persistente');
       const solo = message.solo === true;
       const table = { id: randomUUID(), code, name: String(message.name || 'Mesa Royal').slice(0, 60), gameId: message.gameId === 'uno' ? 'uno' : String(message.gameId || 'uno'), gameName: String(message.gameName || 'UNO'), maxPlayers: solo ? 2 : Math.max(2, Math.min(10, Number(message.maxPlayers) || 4)), private: message.private !== false, voice: message.voice !== false, stake: Math.max(0, Number(message.stake) || 0), solo, status: 'waiting', createdAt: new Date().toISOString(), expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), host: client.email, hostId: client.userId || null };
-      const room = { table, clients: new Map(), playerEmails: new Map(), game: null, roundId: null, botRunning: false };
+      const room = { table, clients: new Map(), playerEmails: new Map(), game: null, roundId: null, botRunning: false, needsRecoveryStart: false };
       rooms.set(code, room); room.clients.set(client.id, client); if (client.email) room.playerEmails.set(client.email, client.id); client.roomCode = code;
       if (solo) { const bot = { ws: null, isBot: true, id: `bot-${randomUUID()}`, name: 'Royal Gold AI', email: `bot-${randomUUID()}@royal.gold`, roomCode: code, voiceActive: false }; room.clients.set(bot.id, bot); room.playerEmails.set(bot.email, bot.id); }
       try { await store.saveTable(table); } catch (storageError) { rooms.delete(code); client.roomCode = null; return error(ws, 'No se pudo guardar la mesa. Intenta de nuevo en unos segundos'); }
@@ -284,7 +291,18 @@ wss.on('connection', ws => {
       if (existing?.ws?.readyState === 1) return error(ws, 'Este miembro ya está conectado a la mesa');
       if (room.clients.size >= room.table.maxPlayers && !returningId) return error(ws, 'Esta mesa ya está completa');
       if (returningId && !existing) client.id = returningId;
-      room.clients.set(client.id, client); if (client.email) room.playerEmails.set(client.email, client.id); client.roomCode = code; if (returningId) send(ws, 'connected', { playerId: client.id, resumed: true }); send(ws, 'joined_table', { table: publicTable(room) }); broadcastRoom(room); if (room.game) { send(ws, 'game_state', { game: publicGame(room, client) }); if (room.game.finished) send(ws, 'game_result', { result: resultFor(room, client) }); } return;
+      room.clients.set(client.id, client); if (client.email) room.playerEmails.set(client.email, client.id); client.roomCode = code;
+      if (room.table.status === 'playing' && !room.game) {
+        room.needsRecoveryStart = true;
+        room.table.status = 'waiting';
+        await store.saveTable(room.table);
+      }
+      if (returningId) send(ws, 'connected', { playerId: client.id, resumed: true });
+      send(ws, 'joined_table', { table: publicTable(room) });
+      broadcastRoom(room);
+      if (room.game) { send(ws, 'game_state', { game: publicGame(room, client) }); if (room.game.finished) send(ws, 'game_result', { result: resultFor(room, client) }); }
+      else await recoverInterruptedRoom(room);
+      return;
     }
     if (type === 'add_bot') {
       const room = rooms.get(client.roomCode); if (!room || room.clients.size >= room.table.maxPlayers) return;
