@@ -322,3 +322,132 @@ body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:-1;ba
   .table-social-panel.open{transform:none}
   .table-social-panel .chat-feed{max-height:150px}
 }
+
+/* Royal Gold celestial casino finish */
+:root{
+  --celestial-gold:#f8d96b;
+  --celestial-hot:#fff4b0;
+  --celestial-champagne:#f4e4a0;
+  --celestial-deep:#8a5d12;
+  --celestial-line:rgba(248,217,107,.3);
+  --celestial-glow:rgba(248,205,77,.22);
+  --shadow:0 28px 80px rgba(0,0,0,.58),0 0 42px rgba(248,205,77,.09);
+}
+
+html{background:#030303}
+body{
+  background:
+    radial-gradient(ellipse at 82% -8%,rgba(248,217,107,.14),transparent 27rem),
+    radial-gradient(ellipse at 8% 76%,rgba(0,91,69,.13),transparent 28rem),
+    linear-gradient(125deg,#050505 0%,#0d0d0c 48%,#050505 100%);
+  background-attachment:fixed;
+}
+body::after{
+  content:"";position:fixed;inset:0;pointer-events:none;z-index:-1;opacity:.2;
+  background-image:linear-gradient(115deg,transparent 0 48%,rgba(255,255,255,.055) 49%,transparent 50%),linear-gradient(25deg,transparent 0 62%,rgba(248,217,107,.045) 63%,transparent 64%);
+  background-size:170px 170px,230px 230px;
+  mask-image:linear-gradient(90deg,transparent,black 18%,black 82%,transparent);
+}
+
+.app-shell{position:relative;background:transparent}
+.sidebar{
+  background:linear-gradient(180deg,rgba(8,8,7,.97),rgba(3,3,3,.94));
+  border-right:1px solid rgba(248,217,107,.22);
+  box-shadow:12px 0 40px rgba(0,0,0,.22),inset -1px 0 rgba(255,246,185,.04);
+}
+.brand-mark{border-color:var(--celestial-gold);box-shadow:0 0 22px rgba(248,217,107,.16),inset 0 0 18px rgba(245,215,110,.18)}
+.brand-name{color:#fff9df;text-shadow:0 0 18px rgba(248,217,107,.24)}
+.brand-sub,.eyebrow,.table-id b,.poker-label,.crazy-label{color:var(--celestial-gold)}
+.nav button{border:1px solid transparent}
+.nav button:hover{color:#fff8de;background:linear-gradient(90deg,rgba(248,217,107,.13),rgba(248,217,107,.025));border-color:rgba(248,217,107,.16)}
+.nav button.active{color:var(--celestial-hot);background:linear-gradient(100deg,rgba(248,217,107,.22),rgba(248,217,107,.045));box-shadow:inset 2px 0 var(--celestial-gold),0 0 24px rgba(248,205,77,.08);border-color:rgba(248,217,107,.2)}
+.avatar,.seat-avatar{border-color:var(--celestial-gold);box-shadow:0 0 18px rgba(248,205,77,.14),inset 0 1px rgba(255,255,255,.13)}
+.main{position:relative}
+.topbar{padding-bottom:17px;border-bottom:1px solid rgba(248,217,107,.16)}
+.breadcrumb strong{color:#fff8de}
+.icon-button,.wallet-pill{
+  background:linear-gradient(145deg,rgba(45,39,22,.9),rgba(12,12,10,.96));
+  border-color:rgba(248,217,107,.3);box-shadow:inset 0 1px rgba(255,255,255,.1),0 7px 20px rgba(0,0,0,.2)
+}
+.icon-button:hover{border-color:var(--celestial-gold);box-shadow:0 0 18px rgba(248,205,77,.18),inset 0 1px rgba(255,255,255,.16)}
+.wallet-pill{color:var(--celestial-hot);border-radius:12px}
+.coin{background:linear-gradient(145deg,#fff4b0,#f2cb4b 52%,#9d6810);box-shadow:0 0 12px rgba(248,217,107,.34),0 1px 0 #fff8c9 inset}
+
+.hero-card,.stat-card,.game-card,.panel,.table-row{
+  background:linear-gradient(145deg,rgba(30,27,19,.9),rgba(8,8,7,.96));
+  border-color:rgba(248,217,107,.25);
+  box-shadow:var(--shadow),inset 0 1px rgba(255,255,255,.08),inset 0 -1px rgba(248,217,107,.08);
+}
+.hero-card{border-radius:22px;background:radial-gradient(ellipse at 78% 30%,rgba(248,217,107,.18),transparent 24rem),linear-gradient(135deg,#211b0e,#0d0d0b 62%,#060606);overflow:hidden}
+.hero-card::before{opacity:.25}
+.hero-card h2{color:#fff9e8;text-shadow:0 3px 30px rgba(248,205,77,.25)}
+.hero-card p{color:#d0c9b5}
+.section-head h2,.panel h3{color:#fff8e5;text-shadow:0 2px 18px rgba(248,205,77,.14)}
+.section-head::after{background:linear-gradient(90deg,rgba(248,217,107,.5),transparent)}
+.game-card{border-radius:16px;transition:transform .24s ease,box-shadow .24s ease,border-color .24s ease}
+.game-card:hover{border-color:rgba(255,233,133,.7);box-shadow:0 20px 44px rgba(0,0,0,.54),0 0 25px rgba(248,205,77,.14)}
+.game-art{border-bottom:1px solid rgba(248,217,107,.26);box-shadow:inset 0 -22px 32px rgba(0,0,0,.32)}
+.game-art.uno{background:radial-gradient(circle at 50% 10%,rgba(255,105,105,.3),transparent 35%),linear-gradient(130deg,#761e2a,#160a0c)}
+.game-art.poker{background:radial-gradient(circle at 50% 10%,rgba(248,217,107,.25),transparent 35%),linear-gradient(130deg,#073e32,#071713)}
+.game-art.blackjack{background:radial-gradient(circle at 50% 10%,rgba(248,217,107,.32),transparent 34%),linear-gradient(130deg,#34250d,#100e08)}
+.game-art.domino{background:radial-gradient(circle at 50% 10%,rgba(248,217,107,.25),transparent 34%),linear-gradient(130deg,#263a35,#0c1512)}
+.game-art.rummy{background:radial-gradient(circle at 50% 10%,rgba(248,217,107,.28),transparent 34%),linear-gradient(130deg,#4a2a0d,#151009)}
+.game-art.crazy{background:radial-gradient(circle at 50% 10%,rgba(184,117,255,.22),transparent 34%),linear-gradient(130deg,#382051,#110d19)}
+.game-name{color:#fff8e5}
+.game-card p,.table-row small{color:#b9b3a3}
+
+.button{border-radius:10px;letter-spacing:.04em;transition:transform .2s ease,filter .2s ease,box-shadow .2s ease,border-color .2s ease}
+.button.primary{color:#241704;background:linear-gradient(135deg,#fff2a1 0%,#f8d765 38%,#c99325 100%);border:1px solid rgba(255,247,184,.75);box-shadow:0 10px 28px rgba(248,205,77,.24),inset 0 1px rgba(255,255,255,.9),inset 0 -3px rgba(111,68,4,.22)}
+.button.primary:hover{filter:brightness(1.12);box-shadow:0 14px 34px rgba(248,205,77,.36),0 0 20px rgba(248,217,107,.2),inset 0 1px #fff}
+.button.ghost{color:var(--celestial-hot);background:linear-gradient(145deg,rgba(248,217,107,.1),rgba(0,0,0,.2));border-color:rgba(248,217,107,.42);box-shadow:inset 0 1px rgba(255,255,255,.07)}
+.button.ghost:hover{color:#fff9dc;background:rgba(248,217,107,.16);border-color:var(--celestial-gold);box-shadow:0 0 20px rgba(248,205,77,.14)}
+.button.dark{color:#eee4c9;background:linear-gradient(145deg,#29251b,#11110e);border-color:rgba(248,217,107,.22)}
+.button.danger{background:linear-gradient(145deg,rgba(147,35,28,.2),rgba(40,11,10,.55));border-color:rgba(236,130,112,.48)}
+.table-row{border-radius:14px}
+.table-row:hover{border-color:rgba(248,217,107,.46);box-shadow:0 12px 28px rgba(0,0,0,.35),inset 0 1px rgba(255,255,255,.07)}
+
+.game-table,.blackjack-table,.domino-table,.poker-table,.rummy-table,.crazy-table{
+  background:radial-gradient(ellipse at 50% 42%,#126c51 0%,#073e30 50%,#021c17 100%);
+  border-color:#a8721a;
+  box-shadow:inset 0 0 0 2px rgba(255,242,160,.5),inset 0 0 0 10px rgba(56,35,8,.74),inset 0 0 100px rgba(0,0,0,.65),0 24px 70px rgba(0,0,0,.58),0 0 34px rgba(248,205,77,.12);
+}
+.game-table::after,.blackjack-table::after,.domino-table::after,.poker-table::after,.rummy-table::after,.crazy-table::after{
+  content:"";position:absolute;inset:16px;pointer-events:none;border:1px solid rgba(255,227,125,.17);border-radius:18px;box-shadow:inset 0 0 40px rgba(0,0,0,.22)
+}
+.game-table:before{border-color:rgba(255,227,125,.23);box-shadow:0 0 40px rgba(248,205,77,.05)}
+.game-table-wrap{position:relative}
+.table-top{padding:0 4px}
+.table-id{color:#bdb49c}
+.table-seat{color:#fff4d6;text-shadow:0 2px 12px #000}
+.table-seat .seat-status{color:#a9e5cc}
+.side-panel,.table-social-panel{
+  background:linear-gradient(145deg,rgba(22,20,14,.97),rgba(5,5,5,.96));
+  border-color:rgba(248,217,107,.42);
+  box-shadow:0 22px 60px rgba(0,0,0,.6),inset 0 1px rgba(255,255,255,.08),inset 0 0 34px rgba(248,205,77,.04);
+}
+.side-panel h4,.table-social-panel h3{color:#fff8e5}
+.player-hand,.rummy-cards,.crazy-cards{filter:drop-shadow(0 12px 18px rgba(0,0,0,.28))}
+.uno-card,.blackjack-card,.poker-card,.crazy-card,.rummy-card,.domino-tile{
+  border-color:rgba(255,246,190,.8);box-shadow:0 10px 20px rgba(0,0,0,.38),inset 0 1px rgba(255,255,255,.9),0 0 9px rgba(248,205,77,.08)
+}
+.uno-card.selected,.rummy-card.selected{box-shadow:0 0 0 3px var(--celestial-hot),0 0 24px rgba(248,217,107,.55),0 13px 20px rgba(0,0,0,.42)}
+.rummy-card:hover,.crazy-card:hover:not(:disabled),.uno-card:hover{box-shadow:0 0 0 1px rgba(255,242,160,.7),0 0 22px rgba(248,205,77,.2),0 13px 24px rgba(0,0,0,.42)}
+.rummy-card-art.court{border-color:rgba(138,93,18,.75)}
+.result-card,.poker-result,.crazy-result{background:radial-gradient(circle at 50% 0,rgba(248,217,107,.16),transparent 50%),linear-gradient(145deg,#2a2111,#0b0c0a);border-color:rgba(248,217,107,.55);box-shadow:0 28px 90px rgba(0,0,0,.7),0 0 34px rgba(248,205,77,.17),inset 0 1px rgba(255,255,255,.13)}
+.result-crown{color:var(--celestial-hot);text-shadow:0 0 25px rgba(248,217,107,.7)}
+.game-help-panel{background:linear-gradient(120deg,rgba(248,217,107,.13),rgba(7,91,67,.22));border-color:rgba(248,217,107,.35);box-shadow:0 16px 38px rgba(0,0,0,.3),inset 0 1px rgba(255,255,255,.08)}
+.game-help-panel h3{color:#fff8e5}
+.chat-message{background:linear-gradient(145deg,rgba(248,217,107,.08),rgba(255,255,255,.025));border:1px solid rgba(248,217,107,.1)}
+.chat-message strong{color:var(--celestial-hot)}
+.chat-form input,.field input,.field select,.table-invite-picker>input{background:rgba(0,0,0,.42);border-color:rgba(248,217,107,.25);box-shadow:inset 0 1px rgba(255,255,255,.04)}
+.chat-form input:focus,.field input:focus,.field select:focus{border-color:var(--celestial-gold);box-shadow:0 0 0 3px rgba(248,205,77,.1),0 0 20px rgba(248,205,77,.1)}
+
+@media (max-width:760px){
+  body::after{opacity:.12}
+  .sidebar{background:linear-gradient(145deg,rgba(25,21,12,.98),rgba(5,5,5,.98));border-color:rgba(248,217,107,.35);box-shadow:0 16px 44px rgba(0,0,0,.7),inset 0 1px rgba(255,255,255,.1)}
+  .main{padding-left:13px;padding-right:13px}
+  .hero-card,.panel,.game-card,.table-row{box-shadow:0 16px 38px rgba(0,0,0,.42),inset 0 1px rgba(255,255,255,.08)}
+  .game-table::after,.blackjack-table::after,.domino-table::after,.poker-table::after,.rummy-table::after,.crazy-table::after{inset:9px;border-radius:13px}
+  .table-social-panel{bottom:84px;border-color:rgba(248,217,107,.55);box-shadow:0 24px 70px rgba(0,0,0,.75),0 0 30px rgba(248,205,77,.12)}
+}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{animation-duration:.01ms!important;animation-iteration-count:1!important;scroll-behavior:auto!important;transition-duration:.01ms!important}}
