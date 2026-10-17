@@ -46,7 +46,7 @@ export function isPlayable(card, top, currentColor) { return card.color === 'bla
 
 export function createGame(players, rng = secureRandom) {
   if (!Array.isArray(players) || players.length < 2) throw new Error('UNO necesita al menos dos jugadores');
-  const game = { rng, players: players.map(player => ({ ...player, hand: [] })), deck: shuffle(createDeck(), rng), discard: [], turn: 0, direction: 1, currentColor: null, finished: false, winnerId: null, lastAction: null };
+  const game = { kind: 'uno', rng, players: players.map(player => ({ ...player, hand: [] })), deck: shuffle(createDeck(), rng), discard: [], turn: 0, direction: 1, currentColor: null, finished: false, winnerId: null, lastAction: null };
   for (const player of game.players) player.hand = draw(game, 7);
   let first = draw(game, 1)[0];
   while (first?.color === 'black') { game.deck.unshift(first); first = draw(game, 1)[0]; }
