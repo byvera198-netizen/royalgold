@@ -727,6 +727,48 @@ document.addEventListener('click', event => {
   render();
   toast('Mesa eliminada', 'success');
 }, true);
+function gameHelpStorageKey() {
+  return `rgc-game-help:${state.user?.id || state.user?.email || 'guest'}`;
+}
+function gameHelpVisible() {
+  return storage.getItem(gameHelpStorageKey()) !== 'off';
+}
+function gameHelpContent(gameId) {
+  const content = {
+    uno: { title: 'Cómo jugar UNO', goal: 'Quédate sin cartas antes que los demás.', steps: ['En tu turno, juega una carta del mismo color, número o símbolo que la carta de descarte.', 'Si no puedes jugar, pulsa “Robar carta”. Si la carta sirve, podrás continuar según las reglas de la mesa.', 'Cuando te quede una carta, pulsa “¡UNO!”. Gana quien se quede sin cartas.'] },
+    blackjack: { title: 'Cómo jugar 21 · Blackjack', goal: 'Acércate a 21 sin pasarte y supera la mano del dealer.', steps: ['Empiezas con dos cartas y el dealer muestra una carta.', 'Pulsa “Pedir carta” para recibir otra o “Plantarse” para conservar tu puntuación.', 'Si superas 21 pierdes automáticamente. El dealer juega después; gana la mejor puntuación sin pasarse.'] },
+    domino: { title: 'Cómo jugar Dominó', goal: 'Coloca tus fichas haciendo coincidir sus números con los extremos de la cadena.', steps: ['En tu turno, selecciona una ficha jugable y elige el extremo izquierdo o derecho.', 'Si no tienes una ficha válida, pulsa “Robar del pozo”; si no puedes jugar, puedes pasar.', 'Gana quien se quede sin fichas primero. Si la mesa se bloquea, gana la puntuación más favorable.'] },
+    poker: { title: 'Cómo jugar Texas Hold’em', goal: 'Forma la mejor combinación de cinco cartas y gana el bote virtual.', steps: ['Recibes dos cartas privadas y se descubren cartas comunitarias por rondas.', 'En tu turno puedes retirarte, pasar, igualar, subir o ir all-in según las opciones disponibles.', 'Al final, la mejor mano de cinco cartas gana. Las fichas son virtuales y no tienen valor monetario.'] },
+    rummy: { title: 'Cómo jugar Rummy', goal: 'Forma combinaciones y quédate sin cartas.', steps: ['Cada turno empieza robando una carta del pozo o la carta superior del descarte.', 'Selecciona tres o más cartas para formar grupos del mismo valor o escaleras del mismo palo.', 'Después descarta una carta. Gana quien vacíe su mano o tenga la mejor puntuación al cerrar la ronda.'] },
+    crazy: { title: 'Cómo jugar Crazy Eights', goal: 'Sé el primero en quedarte sin cartas.', steps: ['Juega una carta del mismo palo o valor que la carta de descarte.', 'El 8 es comodín: al jugarlo, elige el nuevo palo.', 'Si no puedes jugar, pulsa “Robar”. Continúa hasta que un jugador se quede sin cartas.'] }
+  };
+  return content[gameId] || content.uno;
+}
+function gameHelpPanel(gameId) {
+  const help = gameHelpContent(gameId);
+  if (!gameHelpVisible()) return '<button class="game-help-toggle button ghost small" data-action="toggle-game-help">Mostrar ayuda</button>';
+  return `<section class="game-help-panel"><div class="game-help-copy"><div class="eyebrow">Guía rápida</div><h3>${help.title}</h3><p><strong>Objetivo:</strong> ${help.goal}</p><ol>${help.steps.map(step => `<li>${step}</li>`).join('')}</ol></div><button class="button ghost small" data-action="toggle-game-help">Ocultar ayuda</button></section>`;
+}
+function ensureGameHelp() {
+  if (state.view !== 'table' || !state.currentTable?.gameId) return;
+  const root = document.querySelector('.game-table-wrap');
+  if (!root || root.querySelector('.game-help-panel, .game-help-toggle')) return;
+  const anchor = root.querySelector('.table-top') || root.firstElementChild;
+  if (anchor) anchor.insertAdjacentHTML('afterend', gameHelpPanel(state.currentTable.gameId));
+}
+document.addEventListener('click', event => {
+  const button = event.target.closest?.('[data-action="toggle-game-help"]');
+  if (!button) return;
+  event.preventDefault();
+  event.stopImmediatePropagation();
+  storage.setItem(gameHelpStorageKey(), gameHelpVisible() ? 'off' : 'on');
+  render();
+}, true);
+const originalRender = render;
+render = function () {
+  originalRender();
+  ensureGameHelp();
+};
 const originalTableRow = tableRow;
 tableRow = function (table) {
   const wasAdmin = Boolean(state.user?.isAdmin);
