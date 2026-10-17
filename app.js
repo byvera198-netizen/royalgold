@@ -198,7 +198,7 @@ function applySession(session, fallbackName = 'Miembro Royal') {
   state.view = 'lobby'; state.modal = null; state.currentTable = null; state.social = { profiles: [], friendships: [], invitations: [], loaded: false, loading: false, query: '' }; state.pendingInviteUserId = null; save();
 }
 function startGoogleAuth() {
-  const redirectTo = `${location.origin}${location.pathname}${location.search}`;
+  const redirectTo = `${PUBLIC_APP_URL}${location.pathname}${location.search}`;
   const authorizeUrl = new URL(`${SUPABASE_URL}/auth/v1/authorize`);
   authorizeUrl.searchParams.set('provider', 'google');
   authorizeUrl.searchParams.set('redirect_to', redirectTo);
