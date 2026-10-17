@@ -273,6 +273,7 @@ wss.on('connection', ws => {
     let message;
     try { message = JSON.parse(raw.toString()); } catch { error(ws, 'Mensaje inválido'); return; }
     const { type } = message;
+    const normalizedType = String(type || '').replaceAll('-', '_');
     if (type === 'hello') {
       const verifiedUser = store.mode === 'supabase' ? await verifyAccessToken(String(message.authToken || '')) : null;
       if (store.mode === 'supabase' && !verifiedUser?.id) { error(ws, 'Sesión no válida; vuelve a iniciar sesión'); ws.close(1008, 'unauthorized'); return; }
@@ -410,12 +411,12 @@ wss.on('connection', ws => {
       if (room.game.finished) { room.table.status = 'finished'; broadcastResult(room); }
       await store.saveTable(room.table); broadcastGame(room); broadcastRoom(room); if (room.table.solo) void runBotTurns(room); return;
     }
-    if (type === 'rummy_draw_stock' || type === 'rummy_draw_discard' || type === 'rummy_discard' || type === 'rummy_meld') {
+    if (normalizedType === 'rummy_draw_stock' || normalizedType === 'rummy_draw_discard' || normalizedType === 'rummy_discard' || normalizedType === 'rummy_meld') {
       if (!room.game || room.game.kind !== 'rummy' || room.game.finished) return error(ws, 'La ronda de Rummy no está activa');
       try {
-        if (type === 'rummy_draw_stock') rummyDrawStock(room.game, client.id);
-        else if (type === 'rummy_draw_discard') rummyDrawDiscard(room.game, client.id);
-        else if (type === 'rummy_meld') rummyLayMeld(room.game, client.id, message.indices);
+        if (normalizedType === 'rummy_draw_stock') rummyDrawStock(room.game, client.id);
+        else if (normalizedType === 'rummy_draw_discard') rummyDrawDiscard(room.game, client.id);
+        else if (normalizedType === 'rummy_meld') rummyLayMeld(room.game, client.id, message.indices);
         else rummyDiscard(room.game, client.id, Number(message.index));
       } catch (playError) { return error(ws, playError.message); }
       if (room.game.finished) { room.table.status = 'finished'; broadcastResult(room); }
