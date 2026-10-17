@@ -348,7 +348,29 @@ function realtimeUrl() { return `${location.protocol === 'https:' ? 'wss' : 'ws'
 function rtSend(type, payload = {}) { if (state.realtime.ws && state.realtime.connected) { state.realtime.ws.send(JSON.stringify({ type, ...payload })); return true; } return false; }
 function handleRealtimeMessage(message) {
   if (message.type === 'connected') { state.realtime.playerId = message.playerId; if (state.user && message.role) { state.user.role = message.role; state.user.isAdmin = message.isAdmin === true; save(); } return; }
-  if (message.type === 'error') { toast(message.message, 'error'); return; }
+  if (message.type === 'error') {
+    const unavailable = String(message.message || '').toLowerCase().includes('no encontramos una mesa');
+    if (unavailable && state.currentTable?.code) {
+      const code = state.currentTable.code;
+      clearTimeout(state.realtime.reconnectTimer);
+      state.realtime.reconnectTimer = null;
+      state.tables = state.tables.filter(table => table.code !== code);
+      state.currentTable = null;
+      state.uno = null;
+      state.blackjack = null;
+      state.domino = null;
+      state.poker = null;
+      state.rummy = null;
+      state.crazy = null;
+      state.view = 'lobby';
+      save();
+      render();
+      toast('Esta mesa ya no está disponible y se retiró del listado', 'error');
+      return;
+    }
+    toast(message.message, 'error');
+    return;
+  }
   if (message.type === 'table_deleted') {
     state.tables = state.tables.filter(table => table.code !== message.code);
     state.currentTable = null; state.uno = null; state.blackjack = null; state.domino = null; state.poker = null; state.rummy = null; state.crazy = null; state.view = 'lobby'; save(); render(); toast(message.message || 'La mesa fue eliminada', 'success'); return;
