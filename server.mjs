@@ -118,7 +118,8 @@ wss.on('connection', ws => {
       if (store.mode === 'supabase' && !client.userId) return error(ws, 'Inicia sesión para crear una mesa persistente');
       const table = { id: randomUUID(), code, name: String(message.name || 'Mesa Royal').slice(0, 60), gameId: message.gameId === 'uno' ? 'uno' : String(message.gameId || 'uno'), gameName: String(message.gameName || 'UNO'), maxPlayers: Math.max(2, Math.min(10, Number(message.maxPlayers) || 4)), private: message.private !== false, voice: message.voice !== false, stake: Math.max(0, Number(message.stake) || 0), status: 'waiting', createdAt: new Date().toISOString(), expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), host: client.email, hostId: client.userId || null };
       const room = { table, clients: new Map(), playerEmails: new Map(), game: null, roundId: null };
-      rooms.set(code, room); room.clients.set(client.id, client); if (client.email) room.playerEmails.set(client.email, client.id); client.roomCode = code; await store.saveTable(table);
+      rooms.set(code, room); room.clients.set(client.id, client); if (client.email) room.playerEmails.set(client.email, client.id); client.roomCode = code;
+      try { await store.saveTable(table); } catch (storageError) { rooms.delete(code); client.roomCode = null; return error(ws, 'No se pudo guardar la mesa. Intenta de nuevo en unos segundos'); }
       send(ws, 'table_created', { table: publicTable(room) }); broadcastRoom(room); return;
     }
     if (type === 'join_table') {

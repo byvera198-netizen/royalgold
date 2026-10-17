@@ -70,7 +70,10 @@ async function createSupabaseStore(url, key) {
   const request = async (path, options = {}) => {
     const response = await fetch(`${url}/rest/v1/${path}`, { ...options, headers: { apikey: key, Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', ...(options.headers || {}) } });
     if (!response.ok) throw new Error(`Supabase storage error ${response.status}: ${await response.text()}`);
-    return response.status === 204 ? null : response.json();
+    if (response.status === 204) return null;
+    const body = await response.text();
+    if (!body.trim()) return null;
+    try { return JSON.parse(body); } catch { throw new Error(`Supabase storage returned invalid JSON (${response.status})`); }
   };
   return {
     mode: 'supabase',
