@@ -34,7 +34,9 @@ const state = {
   realtime: { ws: null, connected: false, playerId: null, reconnectTimer: null, reconnectDelay: 1500 },
   chat: [],
   voice: { localStream: null, peers: new Map(), names: new Map() },
-  serverHealth: null
+  serverHealth: null,
+  social: { profiles: [], friendships: [], invitations: [], loaded: false, loading: false, query: '' },
+  pendingInviteUserId: null
 };
 
 const icons = {
@@ -69,6 +71,100 @@ async function supabaseAuth(path, { method = 'GET', body, token } = {}) {
   if (!response.ok) throw new Error(data.error_description || data.msg || data.message || 'No se pudo completar la autenticación');
   return data;
 }
+async function supabaseRest(path, { method = 'GET', body } = {}) {
+  if (!state.user?.accessToken) throw new Error('Inicia sesión para usar la comunidad');
+  const headers = { apikey: SUPABASE_PUBLISHABLE_KEY, Authorization: `Bearer ${state.user.accessToken}`, 'Content-Type': 'application/json' };
+  const response = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
+  const data = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error(data.message || data.hint || data.details || 'No se pudo actualizar la comunidad');
+  return data;
+}
+function socialQuery(params) { return new URLSearchParams(params).toString(); }
+async function loadSocial() {
+  if (!state.user?.accessToken || state.social.loading) return;
+  state.social.loading = true;
+  try {
+    const userId = state.user.id;
+    const [profiles, friendships, invitations] = await Promise.all([
+      supabaseRest(`profiles?${socialQuery({ select: 'id,handle,display_name,avatar_url,presence,updated_at', id: `neq.${userId}`, order: 'updated_at.desc', limit: '60' })}`),
+      supabaseRest(`friendships?${socialQuery({ select: 'requester_id,addressee_id,status,updated_at', or: `(requester_id.eq.${userId},addressee_id.eq.${userId})`, order: 'updated_at.desc' })}`),
+      supabaseRest(`invitations?${socialQuery({ select: 'id,table_id,inviter_id,invitee_id,status,created_at,expires_at', or: `(inviter_id.eq.${userId},invitee_id.eq.${userId})`, status: 'eq.pending', order: 'created_at.desc' })}`)
+    ]);
+    state.social.profiles = Array.isArray(profiles) ? profiles : [];
+    state.social.friendships = Array.isArray(friendships) ? friendships : [];
+    state.social.invitations = Array.isArray(invitations) ? invitations : [];
+    state.social.loaded = true;
+  } catch (error) {
+    state.social.loaded = true;
+    toast(error.message || 'No se pudo cargar tu comunidad', 'error');
+  } finally {
+    state.social.loading = false;
+    if (state.view === 'friends') {
+      render();
+      clearTimeout(state.social.refreshTimer);
+      state.social.refreshTimer = setTimeout(() => { state.social.loaded = false; void loadSocial(); }, 15000);
+    }
+  }
+}
+function socialRelationship(profileId) {
+  const userId = state.user?.id;
+  return state.social.friendships.find(item => (item.requester_id === userId && item.addressee_id === profileId) || (item.requester_id === profileId && item.addressee_id === userId));
+}
+function socialProfile(profileId) { return state.social.profiles.find(profile => profile.id === profileId); }
+async function followPlayer(profileId) {
+  try {
+    await supabaseRest('friendships', { method: 'POST', body: { requester_id: state.user.id, addressee_id: profileId, status: 'pending' } });
+    toast('Solicitud de seguimiento enviada', 'success');
+    state.social.loaded = false;
+    await loadSocial();
+  } catch (error) { toast(error.message || 'No se pudo seguir al jugador', 'error'); }
+}
+async function answerFollow(profileId, status) {
+  const relationship = socialRelationship(profileId);
+  if (!relationship) return;
+  try {
+    await supabaseRest(`friendships?requester_id=eq.${encodeURIComponent(relationship.requester_id)}&addressee_id=eq.${encodeURIComponent(relationship.addressee_id)}`, { method: 'PATCH', body: { status } });
+    toast(status === 'accepted' ? 'Ahora forman parte del mismo círculo' : 'Solicitud rechazada', status === 'accepted' ? 'success' : '');
+    state.social.loaded = false;
+    await loadSocial();
+  } catch (error) { toast(error.message || 'No se pudo responder la solicitud', 'error'); }
+}
+async function sendGameInvite(profileId) {
+  const activeTable = state.currentTable && isOwnTable(state.currentTable) && ['waiting', 'playing'].includes(state.currentTable.status) ? state.currentTable : null;
+  if (activeTable) return createGameInvite(profileId, activeTable);
+  state.pendingInviteUserId = profileId;
+  state.view = 'lobby';
+  state.modal = 'create';
+  render();
+  toast('Crea una mesa para enviar la invitación');
+}
+async function createGameInvite(profileId, table) {
+  try {
+    await supabaseRest('invitations', { method: 'POST', body: { table_id: table.id, inviter_id: state.user.id, invitee_id: profileId } });
+    toast(`Solicitud enviada a ${socialProfile(profileId)?.display_name || 'tu jugador'}`, 'success');
+    state.social.loaded = false;
+    await loadSocial();
+  } catch (error) { toast(error.message || 'No se pudo enviar la solicitud de partida', 'error'); }
+}
+async function answerGameInvite(invitation, status) {
+  try {
+    await supabaseRest(`invitations?id=eq.${encodeURIComponent(invitation.id)}&invitee_id=eq.${encodeURIComponent(state.user.id)}`, { method: 'PATCH', body: { status } });
+    if (status === 'declined') {
+      toast('Solicitud de partida rechazada');
+    } else {
+      const tables = await supabaseRest(`game_tables?${socialQuery({ select: 'id,code,name,game_id,status,is_private,max_players,voice_enabled,stake,created_at,expires_at,host_id', id: `eq.${invitation.table_id}` })}`);
+      const table = tables?.[0];
+      if (!table?.code) throw new Error('La mesa ya no está disponible');
+      state.modal = null;
+      state.view = 'waiting';
+      render();
+      if (!rtSend('join_table', { code: table.code })) throw new Error('Conecta el servidor para entrar a la mesa');
+      toast('Entrando a la mesa…', 'success');
+    }
+    state.social.loaded = false;
+    await loadSocial();
+  } catch (error) { toast(error.message || 'No se pudo responder la solicitud de partida', 'error'); }
+}
 function applySession(session, fallbackName = 'Miembro Royal') {
   const remoteUser = session?.user;
   if (!remoteUser || !session.access_token) throw new Error('Supabase no devolvió una sesión válida');
@@ -84,7 +180,7 @@ function applySession(session, fallbackName = 'Miembro Royal') {
     games: 0,
     wins: 0
   };
-  state.view = 'lobby'; state.modal = null; state.currentTable = null; save();
+  state.view = 'lobby'; state.modal = null; state.currentTable = null; state.social = { profiles: [], friendships: [], invitations: [], loaded: false, loading: false, query: '' }; state.pendingInviteUserId = null; save();
 }
 function startGoogleAuth() {
   const redirectTo = `${location.origin}${location.pathname}`;
@@ -156,7 +252,13 @@ function handleRealtimeMessage(message) {
     state.currentTable = message.table;
     const existing = state.tables.findIndex(table => table.code === message.table.code);
     if (existing >= 0) state.tables[existing] = message.table; else state.tables.unshift(message.table);
-    state.modal = null; state.view = state.view === 'table' ? 'table' : 'waiting'; save(); render(); return;
+    state.modal = null; state.view = state.view === 'table' ? 'table' : 'waiting'; save(); render();
+    if (message.type === 'table_created' && state.pendingInviteUserId) {
+      const inviteeId = state.pendingInviteUserId;
+      state.pendingInviteUserId = null;
+      void createGameInvite(inviteeId, message.table);
+    }
+    return;
   }
   if (message.type === 'game_state') {
     if (message.game?.kind === 'blackjack') state.blackjack = message.game;
@@ -258,7 +360,24 @@ function gameCard(game) { return `<article class="game-card"><div class="game-ar
 function tableRow(table) { return `<div class="table-row"><div><span class="tag">${table.private ? '● Privada' : '○ Pública'}</span><strong style="display:block;margin-top:8px">${escapeHtml(table.name)}</strong><small>${table.gameName} · ${table.code}</small></div><div><small>Asientos</small><strong>${table.players.length}/${table.maxPlayers}</strong></div><div><small>Estado</small><strong>${table.status === 'waiting' ? 'En espera' : 'En juego'}</strong></div><button class="button dark small" data-action="join-table" data-code="${table.code}">Entrar</button></div>`; }
 
 function gamesView() { return `<div class="view"><div class="eyebrow">Catálogo del club</div><h1 class="page-title">Una mesa para cada ánimo.</h1><p class="muted" style="margin:12px 0 0;max-width:530px;line-height:1.6;font-size:13px">Cada juego tiene su propio ritmo, reglas y manera de reunir a la gente. Ya puedes abrir mesas de UNO, Blackjack, Dominó, Texas Hold’em, Rummy y Crazy Eights.</p><section class="section"><div class="games-grid">${gameCatalog.map(gameCard).join('')}</div></section><div class="notice" style="margin-top:25px">${icons.info}<span>La siguiente expansión del club será Mica configurable y más mesas con motores de reglas independientes.</span></div></div>`; }
-function friendsView() { return `<div class="view"><div class="eyebrow">Tu círculo</div><h1 class="page-title">Amigos</h1><div class="subpage-grid"><section class="panel"><h3>Personas con las que juegas</h3><div class="field" style="margin-bottom:12px"><input placeholder="Buscar por nombre de jugador" /></div>${[['Sofía Andrade','En línea',true],['Mateo Rivas','Jugando UNO',true],['Lucía Torres','Última vez hace 2 h',false]].map(([n,s,o])=>`<div class="friend-row"><div class="avatar">${initials(n)}</div><div class="row-main"><strong>${n}</strong><span>${s}</span></div><span class="${o?'online-dot':'offline-dot'}"></span><button class="button dark small">Invitar</button></div>`).join('')}</section><section class="panel"><h3>Invitaciones</h3><div class="empty-state">No tienes invitaciones pendientes.<br><span style="font-size:10px">Cuando alguien te invite, aparecerá aquí.</span></div></section></div></div>`; }
+function socialPresenceLabel(profile) { return profile.presence === 'playing' ? 'Jugando ahora' : profile.presence === 'online' ? 'En línea' : 'Desconectado'; }
+function friendsView() {
+  const query = state.social.query.trim().toLowerCase();
+  const profiles = state.social.profiles.filter(profile => !query || `${profile.display_name} ${profile.handle}`.toLowerCase().includes(query));
+  const relationships = state.social.friendships;
+  const incoming = state.social.invitations.filter(item => item.invitee_id === state.user?.id);
+  const profileName = id => escapeHtml(socialProfile(id)?.display_name || 'Miembro Royal');
+  const profileRows = state.social.loading ? '<div class="empty-state">Cargando jugadores del club…</div>' : profiles.length ? profiles.map(profile => {
+    const relationship = socialRelationship(profile.id);
+    const incomingFollow = relationship?.requester_id === profile.id && relationship?.addressee_id === state.user?.id && relationship?.status === 'pending';
+    const followLabel = relationship?.status === 'accepted' ? 'Siguiendo' : incomingFollow ? 'Aceptar' : relationship?.status === 'pending' ? 'Pendiente' : 'Seguir';
+    const followAction = incomingFollow ? 'accept-follow' : relationship?.status === 'accepted' || relationship?.status === 'pending' ? '' : 'follow-player';
+    const status = socialPresenceLabel(profile);
+    return `<div class="friend-row"><div class="avatar">${initials(profile.display_name || profile.handle)}</div><div class="row-main"><strong>${escapeHtml(profile.display_name || profile.handle)}</strong><span>@${escapeHtml(profile.handle)} · ${status}${profile.presence === 'playing' ? ` · ${escapeHtml(profile.current_game || 'partida')}` : ''}</span></div><span class="${profile.presence === 'offline' ? 'offline-dot' : 'online-dot'}"></span><button class="button ghost small" ${followAction ? `data-action="${followAction}" data-user-id="${profile.id}"` : 'disabled'}>${followLabel}</button><button class="button dark small" data-action="invite-player" data-user-id="${profile.id}">Invitar a jugar</button></div>`;
+  }).join('') : '<div class="empty-state">Todavía no hay otros jugadores para mostrar.</div>';
+  const inviteRows = incoming.length ? incoming.map(invitation => `<div class="friend-row"><div class="avatar">${initials(socialProfile(invitation.inviter_id)?.display_name || 'RG')}</div><div class="row-main"><strong>${profileName(invitation.inviter_id)}</strong><span>Te invita a una mesa de juego · ${formatDate(invitation.created_at)}</span></div><button class="button primary small" data-action="accept-game-invite" data-invitation-id="${invitation.id}">Aceptar</button><button class="button dark small" data-action="decline-game-invite" data-invitation-id="${invitation.id}">Rechazar</button></div>`).join('') : '<div class="empty-state">No tienes invitaciones pendientes.<br><span style="font-size:10px">Cuando alguien te invite, aparecerá aquí.</span></div>';
+  return `<div class="view"><div class="eyebrow">Tu círculo</div><h1 class="page-title">Amigos</h1><p class="muted" style="margin-top:10px;max-width:630px;line-height:1.6">Encuentra jugadores, sigue a tu círculo y envía solicitudes de partida cuando estén disponibles.</p><div class="subpage-grid"><section class="panel"><div class="section-head"><h3>Jugadores del club</h3><button class="button ghost small" data-action="refresh-social">Actualizar</button></div><div class="field" style="margin-bottom:12px"><input id="social-search" value="${escapeHtml(state.social.query)}" placeholder="Buscar por nombre o @usuario" autocomplete="off" /></div>${profileRows}</section><section class="panel"><h3>Solicitudes de partida</h3>${inviteRows}<div class="chat-divider" style="margin-top:18px">Tu círculo</div>${relationships.filter(item => item.status === 'accepted').length ? `<p class="muted" style="font-size:11px;line-height:1.6">Tienes ${relationships.filter(item => item.status === 'accepted').length} conexión${relationships.filter(item => item.status === 'accepted').length === 1 ? '' : 'es'} aceptada${relationships.filter(item => item.status === 'accepted').length === 1 ? '' : 's'}.</p>` : '<p class="muted" style="font-size:11px;line-height:1.6">Sigue a otros jugadores para construir tu comunidad.</p>'}</section></div></div>`;
+}
 function historyView() { return `<div class="view"><div class="eyebrow">Tu recorrido</div><h1 class="page-title">Historial de partidas</h1><div class="panel" style="margin-top:28px">${state.history.length ? state.history.map(h=>`<div class="history-row"><div class="game-art ${h.gameId}" style="width:43px;height:43px;margin:0;border-radius:9px;flex:none"><span class="big-suit" style="font-size:30px">${h.gameId==='uno'?'●':'♠'}</span></div><div class="row-main"><strong>${h.gameName}</strong><span>${formatDate(h.date)} · ${h.result}</span></div><strong style="color:${h.delta>=0?'#8fd1bb':'#d7867d'}">${h.delta>=0?'+':''}${h.delta} fichas</strong></div>`).join('') : '<div class="empty-state">Tu historial aparecerá después de terminar tu primera partida.</div>'}</div></div>`; }
 function statsView() { return `<div class="view"><div class="eyebrow">Rendimiento</div><h1 class="page-title">Estadísticas</h1><div class="metric-row" style="margin-top:28px"><div class="metric"><strong>${state.user?.games || 0}</strong><span>Partidas</span></div><div class="metric"><strong>${state.user?.wins || 0}</strong><span>Victorias</span></div><div class="metric"><strong>${state.user?.chips || 1250}</strong><span>Fichas</span></div></div><div class="subpage-grid"><section class="panel"><h3>Tu temporada</h3><div class="empty-state">Aún no hay suficientes partidas para mostrar tendencias.<br><span style="font-size:10px">Juega una ronda de UNO para comenzar a construir tu historial.</span></div></section><section class="panel"><h3>Clasificación</h3><div class="notice">${icons.info}<span>La clasificación del club se activa cuando conectes una base de datos compartida.</span></div></section></div></div>`; }
 function settingsView() { const storage = state.serverHealth?.storage === 'file-development' ? 'Persistencia local de desarrollo activa.' : 'Persistencia del servidor no detectada.'; return `<div class="view"><div class="eyebrow">Preferencias</div><h1 class="page-title">Ajustes</h1><div class="subpage-grid"><section class="panel"><h3>Experiencia de juego</h3><label class="check-row"><input type="checkbox" checked /> Sonidos de cartas y fichas</label><label class="check-row"><input type="checkbox" checked /> Animaciones de mesa</label><label class="check-row"><input type="checkbox" /> Reducir movimiento</label><label class="check-row"><input type="checkbox" checked /> Mostrar estado en línea</label></section><section class="panel"><h3>Estado de integraciones</h3><div class="notice">${icons.info}<span>${state.realtime.connected?'Servidor realtime conectado y listo para mesas compartidas.':'Modo local activo. Para partidas entre dispositivos, inicia el servidor con npm run dev.'} ${storage} Para Supabase, autenticación y voz de producción, sigue <b>README.md</b>.</span></div><button class="button danger small" data-action="logout" style="margin-top:20px">${icons.logout} Cerrar sesión</button></section></div></div>`; }
@@ -307,11 +426,29 @@ function waitingView() { const t=state.currentTable || {name:'Mesa Royal',gameNa
 function historyIcon(gameId) { return ({uno:'●',poker:'♠',blackjack:'21',domino:'◈',rummy:'◆'}[gameId] || '♛'); }
 function historyView() { const total=state.history.length; return `<div class="view"><div class="eyebrow">Tu recorrido</div><h1 class="page-title">Historial de partidas</h1><div class="history-toolbar"><span>${total} ${total===1?'partida registrada':'partidas registradas'}</span><span class="muted">Resultados guardados en este dispositivo</span></div><div class="panel" style="margin-top:18px">${total ? state.history.map(h=>`<div class="history-row"><div class="game-art ${h.gameId}" style="width:43px;height:43px;margin:0;border-radius:9px;flex:none"><span class="big-suit" style="font-size:30px">${historyIcon(h.gameId)}</span></div><div class="row-main"><strong>${escapeHtml(h.gameName || h.gameId || 'Partida')}</strong><span>${formatDate(h.date)} · ${escapeHtml(h.result || 'Finalizada')}</span></div><strong style="color:${h.delta>=0?'#8fd1bb':'#d7867d'}">${h.delta>=0?'+':''}${h.delta||0} fichas</strong></div>`).join('') : '<div class="empty-state">Tu historial aparecerá después de terminar tu primera partida.</div>'}</div></div>`; }
 function statsView() { const total=state.history.length; const wins=state.history.filter(item=>item.won||item.result==='Victoria'||item.result==='Blackjack').length; const winRate=total?Math.round((wins/total)*100):0; const byGame=[...new Map(state.history.map(item=>[item.gameId,item])).values()]; return `<div class="view"><div class="eyebrow">Rendimiento</div><h1 class="page-title">Estadísticas</h1><div class="metric-row" style="margin-top:28px"><div class="metric"><strong>${state.user?.games||0}</strong><span>Partidas</span></div><div class="metric"><strong>${state.user?.wins||0}</strong><span>Victorias</span></div><div class="metric"><strong>${winRate}%</strong><span>Ratio de victoria</span></div></div><div class="subpage-grid"><section class="panel"><h3>Tu temporada</h3>${total?`<div class="season-stat"><span>Fichas ganadas</span><strong>+${state.history.reduce((sum,item)=>sum+(item.delta||0),0)}</strong></div><div class="season-stat"><span>Juegos visitados</span><strong>${byGame.length}</strong></div><div class="season-stat"><span>Última partida</span><strong>${formatDate(state.history[0].date)}</strong></div>`:'<div class="empty-state">Aún no hay suficientes partidas para mostrar tendencias.<br><span style="font-size:10px">Termina una ronda para comenzar a construir tu historial.</span></div>'}</section><section class="panel"><h3>Clasificación</h3><div class="notice">${icons.info}<span>La clasificación del club se activará al conectar una base de datos compartida. Tus resultados locales ya están contabilizados.</span></div></section></div></div>`; }
-function render() { app.innerHTML = state.user ? (state.view==='waiting' ? shell(waitingView()) : state.view==='table' ? shell(state.currentTable?.gameId==='blackjack' ? blackjackView() : state.currentTable?.gameId==='domino' ? dominoView() : state.currentTable?.gameId==='poker' ? pokerView() : state.currentTable?.gameId==='rummy' ? rummyView() : state.currentTable?.gameId==='crazy' ? crazyView() : tableView()) : shell(({lobby:lobbyView,games:gamesView,friends:friendsView,history:historyView,stats:statsView,settings:settingsView,profile:profileView}[state.view] || lobbyView)())) : authView(); attachEvents(); ensureSoloOption(); attachResultOverlay(); if (state.user) connectRealtime(); }
+function render() { app.innerHTML = state.user ? (state.view==='waiting' ? shell(waitingView()) : state.view==='table' ? shell(state.currentTable?.gameId==='blackjack' ? blackjackView() : state.currentTable?.gameId==='domino' ? dominoView() : state.currentTable?.gameId==='poker' ? pokerView() : state.currentTable?.gameId==='rummy' ? rummyView() : state.currentTable?.gameId==='crazy' ? crazyView() : tableView()) : shell(({lobby:lobbyView,games:gamesView,friends:friendsView,history:historyView,stats:statsView,settings:settingsView,profile:profileView}[state.view] || lobbyView)())) : authView(); attachEvents(); ensureSoloOption(); attachResultOverlay(); if (state.user) connectRealtime(); if (state.user && state.view === 'friends' && !state.social.loaded && !state.social.loading) void loadSocial(); }
 document.addEventListener('click',e=>{const button=e.target.closest?.('[data-action]');if(!button)return;const action=button.dataset.action;if((action==='start-uno')&&['blackjack','domino','poker'].includes(state.currentTable?.gameId)){e.preventDefault();e.stopImmediatePropagation();if(rtSend('start_game'))toast(`Preparando partida de ${state.currentTable.gameId==='domino'?'dominó':state.currentTable.gameId==='poker'?'póker':'21'}…`);return;}if(action==='blackjack-hit'){blackjackAction('blackjack_hit');return;}if(action==='blackjack-stand'){blackjackAction('blackjack_stand');return;}if(action==='blackjack-replay'||action==='domino-replay'||action==='poker-replay'){if(rtSend('start_game'))toast('Preparando una nueva ronda…');return;}if(action==='domino-place'){const tile=button;const side=window.prompt('Escribe izquierda o derecha', 'derecha')?.toLowerCase().startsWith('i')?'left':'right';dominoAction('domino_place',{index:Number(tile.dataset.index),side});return;}if(action==='domino-draw'){dominoAction('domino_draw');return;}if(action==='domino-pass'){dominoAction('domino_pass');return;}if(action.startsWith('poker-')){const amount=action==='poker-raise'?Number(document.querySelector('#poker-raise-amount')?.value):undefined;pokerAction(action,amount);return;}}, true);
 document.addEventListener('click',e=>{const button=e.target.closest?.('[data-action]');if(!button)return;const action=button.dataset.action;const gameId=state.currentTable?.gameId;if(action==='start-uno'&&gameId==='rummy'){e.preventDefault();e.stopImmediatePropagation();if(rtSend('start_game'))toast('Preparando partida de Rummy…');return;}if(action==='rummy-draw-stock'||action==='rummy-draw-discard'){e.preventDefault();e.stopImmediatePropagation();rummyAction(action);return;}if(action==='rummy-discard'){e.preventDefault();e.stopImmediatePropagation();rummyAction(action,{index:Number(button.dataset.index)});return;}if(action==='rummy-meld'){e.preventDefault();e.stopImmediatePropagation();const raw=window.prompt('Indica los índices de las cartas separados por comas (ej. 0,1,2)','0,1,2');if(raw===null)return;const indices=raw.split(',').map(value=>Number(value.trim())).filter(Number.isInteger);rummyAction(action,{indices});return;}if(action==='rummy-replay'){e.preventDefault();e.stopImmediatePropagation();if(rtSend('start_game'))toast('Preparando una nueva ronda…');}}, true);
 document.addEventListener('click',e=>{const button=e.target.closest?.('[data-action]');if(!button)return;const action=button.dataset.action;const gameId=state.currentTable?.gameId;if(action==='start-uno'&&gameId==='crazy'){e.preventDefault();e.stopImmediatePropagation();if(rtSend('start_game'))toast('Preparando partida de Crazy Eights…');return;}if(action==='crazy-draw-card'){e.preventDefault();e.stopImmediatePropagation();crazyAction(action);return;}if(action==='crazy-play-card'){e.preventDefault();e.stopImmediatePropagation();const card=state.crazy?.hand?.[Number(button.dataset.index)];const chosenSuit=card?.rank==='8'?(window.prompt('Elige el nuevo palo: ♠, ♥, ♦ o ♣','♠')||'').trim():undefined;if(card?.rank==='8'&&!['♠','♥','♦','♣'].includes(chosenSuit))return toast('Palo inválido','error');crazyAction(action,{index:Number(button.dataset.index),chosenSuit});return;}if(action==='crazy-replay'){e.preventDefault();e.stopImmediatePropagation();if(rtSend('start_game'))toast('Preparando una nueva ronda…');}}, true);
 document.addEventListener('click',e=>{const button=e.target.closest?.('[data-action]');if(!button)return;const action=button.dataset.action;if(action==='play-game'){setTimeout(()=>{const gameSelect=document.querySelector('#create-form select[name="game"]');const max=document.querySelector('#create-form select[name="max"]');if(gameSelect&&max){gameSelect.value=button.dataset.game;max.innerHTML=maxOptionsMarkup(button.dataset.game);}},25);}if(action==='leave-table'){clearTimeout(state.realtime.reconnectTimer);state.realtime.reconnectTimer=null;state.currentTable=null;state.uno=null;state.blackjack=null;state.domino=null;state.poker=null;state.rummy=null;state.crazy=null;save();}if(action==='logout'){clearTimeout(state.realtime.reconnectTimer);state.realtime.reconnectTimer=null;state.modal=null;state.view='lobby';}}, true);
+document.addEventListener('click', async event => {
+  const button = event.target.closest?.('[data-action]');
+  if (!button) return;
+  const action = button.dataset.action;
+  if (action === 'follow-player') return followPlayer(button.dataset.userId);
+  if (action === 'accept-follow') return answerFollow(button.dataset.userId, 'accepted');
+  if (action === 'invite-player') return sendGameInvite(button.dataset.userId);
+  if (action === 'refresh-social') { state.social.loaded = false; return loadSocial(); }
+  if (action === 'accept-game-invite' || action === 'decline-game-invite') {
+    const invitation = state.social.invitations.find(item => item.id === button.dataset.invitationId);
+    if (invitation) return answerGameInvite(invitation, action === 'accept-game-invite' ? 'accepted' : 'declined');
+  }
+});
+document.addEventListener('change', event => {
+  if (event.target.id !== 'social-search') return;
+  state.social.query = String(event.target.value || '');
+  render();
+});
 document.addEventListener('change',e=>{const select=e.target.closest?.('#create-form select[name="game"]');if(!select)return;const max=document.querySelector('#create-form select[name="max"]');if(!max)return;max.innerHTML=maxOptionsMarkup(select.value);});
 document.addEventListener('click',e=>{const google=e.target.closest?.('#google-login');if(!google)return;e.preventDefault();startGoogleAuth()});
 document.addEventListener('click',e=>{const demo=e.target.closest?.('#demo-login');if(!demo)return;e.preventDefault();state.user={name:'B. Alvear',email:'byvera198@gmail.com',role:'admin',isAdmin:true,chips:1250,games:0,wins:0};state.view='lobby';state.modal=null;state.currentTable=null;save();toast('Cuenta de desarrollador local iniciada','success');render()});

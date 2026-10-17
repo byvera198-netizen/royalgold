@@ -28,6 +28,20 @@ async function verifyAccessToken(token) {
     return await response.json();
   } catch { return null; }
 }
+async function setPresence(userId, presence) {
+  if (store.mode !== 'supabase' || !supabaseUrl || !supabaseSecretKey || !userId) return;
+  try {
+    await fetch(`${supabaseUrl}/rest/v1/profiles?id=eq.${encodeURIComponent(userId)}`, {
+      method: 'PATCH',
+      headers: { apikey: supabaseSecretKey, Authorization: `Bearer ${supabaseSecretKey}`, 'Content-Type': 'application/json', Prefer: 'return=minimal' },
+      body: JSON.stringify({ presence, updated_at: new Date().toISOString() })
+    });
+  } catch (presenceError) { console.error('Royal Gold presence error:', presenceError.message); }
+}
+function syncRoomPresence(room) {
+  const presence = room.table.status === 'playing' ? 'playing' : 'online';
+  for (const participant of room.clients.values()) if (participant.userId && !participant.isBot) void setPresence(participant.userId, presence);
+}
 for (const table of await store.listTables()) rooms.set(table.code, { table, clients: new Map(), playerEmails: new Map(), game: null, roundId: null });
 const heartbeatMs = 30000;
 
@@ -173,7 +187,7 @@ async function startRoomGame(room, client) {
   const players = [...room.clients.values()].map(({ id, name }) => ({ id, name }));
   try { room.game = room.table.gameId === 'blackjack' ? createBlackjackGame(players) : room.table.gameId === 'domino' ? createDominoGame(players) : room.table.gameId === 'poker' ? createPokerGame(players) : room.table.gameId === 'rummy' ? createRummyGame(players) : room.table.gameId === 'crazy' ? createCrazyGame(players) : createGame(players); }
   catch (gameError) { room.table.status = 'waiting'; return error(client.ws, gameError.message); }
-  await store.saveTable(room.table); broadcastRoom(room); broadcastGame(room); void runBotTurns(room);
+  await store.saveTable(room.table); syncRoomPresence(room); broadcastRoom(room); broadcastGame(room); void runBotTurns(room);
 }
 
 const wss = new WebSocketServer({ noServer: true, maxPayload: 64 * 1024 });
@@ -196,6 +210,7 @@ wss.on('connection', ws => {
       client.email = String(verifiedUser?.email || message.email || '').slice(0, 120);
       client.userId = String(verifiedUser?.id || message.userId || '').slice(0, 80);
       const isAdmin = adminEmails.has(client.email.toLowerCase());
+      void setPresence(client.userId, 'online');
       send(ws, 'connected', { playerId: client.id, role: isAdmin ? 'admin' : 'player', isAdmin });
       return;
     }
@@ -311,15 +326,16 @@ wss.on('connection', ws => {
     }
     if (type === 'leave_table') {
       if (client.voiceActive) for (const participant of room.clients.values()) if (participant.id !== client.id && participant.voiceActive) send(participant.ws, 'voice_peer_left', { peerId: client.id });
-      room.clients.delete(client.id); client.roomCode = null;
+      room.clients.delete(client.id); client.roomCode = null; void setPresence(client.userId, 'online');
       if (!room.clients.size) rooms.delete(room.table.code); else { broadcastRoom(room); if (room.game) broadcastGame(room); }
     }
   });
   ws.on('close', () => {
-    const room = rooms.get(client.roomCode); if (!room) return;
+    const room = rooms.get(client.roomCode); if (!room) { void setPresence(client.userId, 'offline'); return; }
     if (room.clients.get(client.id) !== client) return;
     if (client.voiceActive) for (const participant of room.clients.values()) if (participant.id !== client.id && participant.voiceActive) send(participant.ws, 'voice_peer_left', { peerId: client.id });
     room.clients.delete(client.id);
+    void setPresence(client.userId, 'offline');
     if (!room.clients.size) rooms.delete(room.table.code); else { broadcastRoom(room); if (room.game) broadcastGame(room); }
   });
 });
