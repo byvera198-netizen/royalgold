@@ -95,6 +95,48 @@ async function supabaseRest(path, { method = 'GET', body } = {}) {
   if (!response.ok) throw new Error(data.message || data.hint || data.details || 'No se pudo actualizar la comunidad');
   return data;
 }
+function clearClientAccountState() {
+  clearTimeout(state.realtime.reconnectTimer);
+  state.realtime.reconnectTimer = null;
+  state.realtime.ws?.close();
+  state.realtime.ws = null;
+  state.realtime.connected = false;
+  state.realtime.playerId = null;
+  state.user = null;
+  state.view = 'lobby';
+  state.modal = null;
+  state.currentTable = null;
+  state.tables = [];
+  state.history = [];
+  state.chat = [];
+  state.uno = null;
+  state.blackjack = null;
+  state.domino = null;
+  state.poker = null;
+  state.rummy = null;
+  state.rummySelection = [];
+  state.crazy = null;
+  state.pendingInviteUserId = null;
+  state.pendingJoinCode = null;
+  state.social = { profiles: [], friendships: [], invitations: [], loaded: false, loading: false, query: '' };
+  storage.removeItem('rgc-user');
+  storage.removeItem('rgc-tables');
+  storage.removeItem('rgc-history');
+  storage.removeItem('rgc-current-table');
+}
+async function deleteAccount() {
+  const token = state.user?.accessToken;
+  if (token) {
+    const response = await fetch('/api/account', { method: 'DELETE', headers: { Authorization: `Bearer ${token}` } });
+    const data = await response.json().catch(() => ({}));
+    if (!response.ok) throw new Error(data.message || 'No se pudo eliminar la cuenta. Inténtalo de nuevo.');
+  } else if (isHostedProduction) {
+    throw new Error('Tu sesión expiró. Vuelve a iniciar sesión antes de eliminar la cuenta.');
+  }
+  clearClientAccountState();
+  toast('Cuenta eliminada. Puedes comenzar desde cero.', 'success');
+  render();
+}
 function normalizeAlias(value) {
   return String(value || '').trim().replace(/^@+/, '').toLowerCase().replace(/[^a-z0-9_]/g, '').slice(0, 24);
 }
@@ -474,7 +516,7 @@ function friendsView() {
 }
 function historyView() { return `<div class="view"><div class="eyebrow">Tu recorrido</div><h1 class="page-title">Historial de partidas</h1><div class="panel" style="margin-top:28px">${state.history.length ? state.history.map(h=>`<div class="history-row"><div class="game-art ${h.gameId}" style="width:43px;height:43px;margin:0;border-radius:9px;flex:none"><span class="big-suit" style="font-size:30px">${h.gameId==='uno'?'●':'♠'}</span></div><div class="row-main"><strong>${h.gameName}</strong><span>${formatDate(h.date)} · ${h.result}</span></div><strong style="color:${h.delta>=0?'#8fd1bb':'#d7867d'}">${h.delta>=0?'+':''}${h.delta} fichas</strong></div>`).join('') : '<div class="empty-state">Tu historial aparecerá después de terminar tu primera partida.</div>'}</div></div>`; }
 function statsView() { return `<div class="view"><div class="eyebrow">Rendimiento</div><h1 class="page-title">Estadísticas</h1><div class="metric-row" style="margin-top:28px"><div class="metric"><strong>${state.user?.games || 0}</strong><span>Partidas</span></div><div class="metric"><strong>${state.user?.wins || 0}</strong><span>Victorias</span></div><div class="metric"><strong>${state.user?.chips || 1250}</strong><span>Fichas</span></div></div><div class="subpage-grid"><section class="panel"><h3>Tu temporada</h3><div class="empty-state">Aún no hay suficientes partidas para mostrar tendencias.<br><span style="font-size:10px">Juega una ronda de UNO para comenzar a construir tu historial.</span></div></section><section class="panel"><h3>Clasificación</h3><div class="notice">${icons.info}<span>La clasificación del club se activa cuando conectes una base de datos compartida.</span></div></section></div></div>`; }
-function settingsView() { const storage = state.serverHealth?.storage === 'file-development' ? 'Persistencia local de desarrollo activa.' : 'Persistencia del servidor no detectada.'; return `<div class="view"><div class="eyebrow">Preferencias</div><h1 class="page-title">Ajustes</h1><div class="subpage-grid"><section class="panel"><h3>Experiencia de juego</h3><label class="check-row"><input type="checkbox" checked /> Sonidos de cartas y fichas</label><label class="check-row"><input type="checkbox" checked /> Animaciones de mesa</label><label class="check-row"><input type="checkbox" /> Reducir movimiento</label><label class="check-row"><input type="checkbox" checked /> Mostrar estado en línea</label></section><section class="panel"><h3>Estado de integraciones</h3><div class="notice">${icons.info}<span>${state.realtime.connected?'Servidor realtime conectado y listo para mesas compartidas.':'Modo local activo. Para partidas entre dispositivos, inicia el servidor con npm run dev.'} ${storage} Para Supabase, autenticación y voz de producción, sigue <b>README.md</b>.</span></div><button class="button danger small" data-action="logout" style="margin-top:20px">${icons.logout} Cerrar sesión</button></section></div></div>`; }
+function settingsView() { const storage = state.serverHealth?.storage === 'file-development' ? 'Persistencia local de desarrollo activa.' : 'Persistencia del servidor no detectada.'; return `<div class="view"><div class="eyebrow">Preferencias</div><h1 class="page-title">Ajustes</h1><div class="subpage-grid"><section class="panel"><h3>Experiencia de juego</h3><label class="check-row"><input type="checkbox" checked /> Sonidos de cartas y fichas</label><label class="check-row"><input type="checkbox" checked /> Animaciones de mesa</label><label class="check-row"><input type="checkbox" /> Reducir movimiento</label><label class="check-row"><input type="checkbox" checked /> Mostrar estado en línea</label></section><section class="panel"><h3>Estado de integraciones</h3><div class="notice">${icons.info}<span>${state.realtime.connected?'Servidor realtime conectado y listo para mesas compartidas.':'Modo local activo. Para partidas entre dispositivos, inicia el servidor con npm run dev.'} ${storage} Para Supabase, autenticación y voz de producción, sigue <b>README.md</b>.</span></div><div class="account-actions"><button class="button dark small" data-action="logout">${icons.logout} Cerrar sesión</button><button class="button danger small" data-action="delete-account">Eliminar cuenta</button></div></section></div></div>`; }
 function profileView() { const roleLabel = state.user?.isAdmin ? 'Desarrollador · Administrador' : 'Royal member'; const alias = state.user?.alias || normalizeAlias(state.user?.name) || 'member'; return `<div class="view"><div class="eyebrow">Tu identidad en el club</div><h1 class="page-title">Perfil</h1><div class="subpage-grid"><section class="panel"><div class="profile-top"><div class="avatar">${initials(alias)}</div><div><h2>${escapeHtml(alias)}</h2><p>Nombre: ${escapeHtml(state.user?.name || 'Miembro')} · ${escapeHtml(state.user?.email || '')}</p></div><button class="button dark small" data-action="edit-profile" style="margin-left:auto">Editar</button></div><div class="profile-alias-note">Tu alias es la identificación que verán los demás jugadores en las mesas y en tu comunidad.</div><div class="metric-row"><div class="metric"><strong>${state.user?.games||0}</strong><span>Partidas</span></div><div class="metric"><strong>${state.user?.wins||0}</strong><span>Victorias</span></div><div class="metric"><strong>${(state.user?.chips||1250).toLocaleString('es-EC')}</strong><span>Saldo</span></div></div></section><section class="panel"><h3>Membresía</h3><div class="eyebrow" style="margin-bottom:9px">${roleLabel}</div><p class="muted" style="font-size:12px;line-height:1.6">${state.user?.isAdmin ? 'Esta cuenta tiene permisos de desarrollador y administración dentro de Royal Gold Club.' : 'Tu cuenta está lista para jugar en el club. Tus fichas no tienen valor monetario.'}</p></section></div></div>`; }
 
 function waitingView() { const t=state.currentTable; return `<div class="view waiting"><button class="text-button" data-nav="lobby">← Volver al lobby</button><div style="margin-top:25px"><div class="eyebrow">Mesa privada · sala de espera</div><h1 class="page-title">${escapeHtml(t.name)}</h1><p class="muted" style="font-size:12px;margin-top:10px">${t.gameName} · ${t.private?'Solo con código':'Mesa visible para el club'} · ${t.maxPlayers} asientos</p></div><div class="invite-code"><div><div class="muted" style="font-size:10px;text-transform:uppercase;letter-spacing:.14em">Código de invitación</div><code>${t.code}</code></div><button class="button dark small" data-action="copy-code">${icons.copy} Copiar</button><button class="button ghost small" data-action="share-code">Compartir</button></div><div class="notice">${icons.info}<span>Comparte este código con tu círculo. En esta versión local, las mesas se guardan en este navegador y se pueden abrir en otra pestaña del mismo dispositivo.</span></div><section class="panel" style="margin-top:20px"><div class="section-head"><h2 style="font-size:20px">Participantes</h2><span class="muted" style="font-size:11px">${t.players.length}/${t.maxPlayers} asientos ocupados</span></div><div class="seats-grid">${Array.from({length:t.maxPlayers},(_,i)=>{const p=t.players[i];return p?`<div class="seat-box filled"><div class="avatar" style="margin-bottom:8px">${initials(p.name)}</div><strong>${escapeHtml(p.name)}</strong><span style="font-size:9px;color:#73bca5">${i===0?'Anfitrión':'Listo'}</span></div>`:`<div class="seat-box">Asiento disponible</div>`}).join('')}</div><div class="modal-actions"><button class="button dark" data-action="add-bot">Añadir rival de prueba</button><button class="button primary" data-action="start-uno" ${t.players.length<2?'disabled style="opacity:.45;cursor:not-allowed"':''}>Comenzar partida ${icons.arrow}</button></div></section></div>`; }
@@ -564,6 +606,21 @@ document.addEventListener('change', event => {
   state.social.query = String(event.target.value || '');
   render();
 });
+document.addEventListener('click', async event => {
+  const button = event.target.closest?.('[data-action="delete-account"]');
+  if (!button) return;
+  event.preventDefault();
+  event.stopImmediatePropagation();
+  const confirmed = window.confirm('¿Eliminar tu cuenta de forma permanente? Se borrarán tu perfil, fichas, historial, mesas, amistades, invitaciones y notificaciones. Esta acción no se puede deshacer.');
+  if (!confirmed) return;
+  button.disabled = true;
+  try {
+    await deleteAccount();
+  } catch (error) {
+    button.disabled = false;
+    toast(error.message || 'No se pudo eliminar la cuenta', 'error');
+  }
+}, true);
 document.addEventListener('input', event => {
   if (event.target.id !== 'table-invite-search') return;
   state.social.tableQuery = String(event.target.value || '');

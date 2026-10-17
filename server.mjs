@@ -28,6 +28,35 @@ async function verifyAccessToken(token) {
     return await response.json();
   } catch { return null; }
 }
+async function deleteSupabaseAccount(token, userId) {
+  if (store.mode !== 'supabase' || !supabaseUrl || !supabaseSecretKey) throw new Error('La eliminación segura no está disponible en este entorno');
+  const rpcResponse = await fetch(`${supabaseUrl}/rest/v1/rpc/delete_my_account`, {
+    method: 'POST',
+    headers: { apikey: supabaseSecretKey, Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' },
+    body: '{}'
+  });
+  const rpcData = await rpcResponse.json().catch(() => ({}));
+  if (!rpcResponse.ok) throw new Error(rpcData.message || rpcData.hint || rpcData.details || 'No se pudieron eliminar los datos de la cuenta');
+
+  const authResponse = await fetch(`${supabaseUrl}/auth/v1/admin/users/${encodeURIComponent(userId)}`, {
+    method: 'DELETE',
+    headers: { apikey: supabaseSecretKey, Authorization: `Bearer ${supabaseSecretKey}` }
+  });
+  const authData = await authResponse.json().catch(() => ({}));
+  if (!authResponse.ok && authResponse.status !== 404) throw new Error(authData.message || authData.msg || 'No se pudo eliminar la cuenta de autenticación');
+}
+function removeDeletedUserFromRooms(userId) {
+  for (const [code, room] of rooms) {
+    for (const participant of [...room.clients.values()]) {
+      if (participant.userId !== userId) continue;
+      room.clients.delete(participant.id);
+      participant.roomCode = null;
+      if (participant.ws) participant.ws.close(1000, 'account deleted');
+    }
+    if (!room.clients.size) rooms.delete(code);
+    else { broadcastRoom(room); if (room.game) broadcastGame(room); }
+  }
+}
 async function setPresence(userId, presence) {
   if (store.mode !== 'supabase' || !supabaseUrl || !supabaseSecretKey || !userId) return;
   try {
@@ -86,6 +115,27 @@ function broadcastResult(room) { if (!room.game?.finished) return; for (const cl
 
 const server = createServer(async (req, res) => {
   const urlPath = decodeURIComponent((req.url || '/').split('?')[0]);
+  if (req.method === 'DELETE' && urlPath === '/api/account') {
+    const authorization = String(req.headers.authorization || '');
+    const token = authorization.startsWith('Bearer ') ? authorization.slice(7).trim() : '';
+    const verifiedUser = await verifyAccessToken(token);
+    if (!verifiedUser?.id) {
+      res.writeHead(401, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({ message: 'La sesión no es válida o ya expiró' }));
+      return;
+    }
+    try {
+      await deleteSupabaseAccount(token, verifiedUser.id);
+      removeDeletedUserFromRooms(verifiedUser.id);
+      res.writeHead(204);
+      res.end();
+    } catch (deleteError) {
+      console.error('Royal Gold account deletion error:', deleteError.message);
+      res.writeHead(500, { 'Content-Type': 'application/json; charset=utf-8' });
+      res.end(JSON.stringify({ message: deleteError.message || 'No se pudo eliminar la cuenta' }));
+    }
+    return;
+  }
   if (urlPath === '/health') {
     const body = JSON.stringify({ status: 'ok', realtime: true, storage: store.mode, rooms: rooms.size, checkedAt: new Date().toISOString() });
     res.writeHead(200, { 'Content-Type': 'application/json; charset=utf-8', 'Cache-Control': 'no-store' }); res.end(body); return;
