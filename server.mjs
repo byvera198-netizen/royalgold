@@ -20,6 +20,14 @@ const store = await createStore();
 const supabaseUrl = String(process.env.SUPABASE_URL || '').replace(/\/$/, '');
 const supabaseSecretKey = String(process.env.SUPABASE_SECRET_KEY || process.env.SUPABASE_SERVICE_ROLE_KEY || '');
 const adminEmails = new Set(['byvera198@gmail.com']);
+const voiceIceServers = [
+  { urls: process.env.VOICE_STUN_URL || 'stun:stun.l.google.com:19302' },
+  ...(process.env.VOICE_TURN_URL ? [{
+    urls: String(process.env.VOICE_TURN_URL),
+    username: String(process.env.VOICE_TURN_USERNAME || ''),
+    credential: String(process.env.VOICE_TURN_CREDENTIAL || '')
+  }] : [])
+];
 async function verifyAccessToken(token) {
   if (store.mode !== 'supabase' || !token || !supabaseUrl || !supabaseSecretKey) return null;
   try {
@@ -71,7 +79,7 @@ function syncRoomPresence(room) {
   const presence = room.table.status === 'playing' ? 'playing' : 'online';
   for (const participant of room.clients.values()) if (participant.userId && !participant.isBot) void setPresence(participant.userId, presence);
 }
-for (const table of await store.listTables()) rooms.set(table.code, { table, clients: new Map(), playerEmails: new Map(), game: null, roundId: null, needsRecoveryStart: table.status === 'playing' });
+for (const table of await store.listTables()) rooms.set(table.code, { table, clients: new Map(), playerEmails: new Map(), chat: [], game: null, roundId: null, needsRecoveryStart: table.status === 'playing' });
 const heartbeatMs = 30000;
 
 function roomCode() {
@@ -85,7 +93,7 @@ function send(ws, type, payload = {}) {
 function publicTable(room) {
   return {
     ...room.table,
-    players: [...room.clients.values()].map(client => ({ id: client.id, name: client.name, email: client.email, connected: client.ws ? client.ws.readyState === 1 : true }))
+    players: [...room.clients.values()].map(client => ({ id: client.id, name: client.name, email: client.email, connected: client.ws ? client.ws.readyState === 1 : true, voiceActive: Boolean(client.voiceActive) }))
   };
 }
 function publicGame(room, client) {
@@ -282,7 +290,7 @@ wss.on('connection', ws => {
       client.userId = String(verifiedUser?.id || message.userId || '').slice(0, 80);
       const isAdmin = adminEmails.has(client.email.toLowerCase());
       void setPresence(client.userId, 'online');
-      send(ws, 'connected', { playerId: client.id, role: isAdmin ? 'admin' : 'player', isAdmin });
+      send(ws, 'connected', { playerId: client.id, role: isAdmin ? 'admin' : 'player', isAdmin, iceServers: voiceIceServers });
       return;
     }
     if (type === 'create_table') {
@@ -290,7 +298,7 @@ wss.on('connection', ws => {
       if (store.mode === 'supabase' && !client.userId) return error(ws, 'Inicia sesión para crear una mesa persistente');
       const solo = message.solo === true;
       const table = { id: randomUUID(), code, name: String(message.name || 'Mesa Royal').slice(0, 60), gameId: message.gameId === 'uno' ? 'uno' : String(message.gameId || 'uno'), gameName: String(message.gameName || 'UNO'), maxPlayers: solo ? 2 : Math.max(2, Math.min(10, Number(message.maxPlayers) || 4)), private: message.private !== false, voice: message.voice !== false, stake: Math.max(0, Number(message.stake) || 0), solo, status: 'waiting', createdAt: new Date().toISOString(), expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), host: client.email, hostId: client.userId || null };
-      const room = { table, clients: new Map(), playerEmails: new Map(), game: null, roundId: null, botRunning: false, needsRecoveryStart: false };
+      const room = { table, clients: new Map(), playerEmails: new Map(), chat: [], game: null, roundId: null, botRunning: false, needsRecoveryStart: false };
       rooms.set(code, room); room.clients.set(client.id, client); if (client.email) room.playerEmails.set(client.email, client.id); client.roomCode = code;
       if (solo) { const bot = { ws: null, isBot: true, id: `bot-${randomUUID()}`, name: 'Royal Gold AI', email: `bot-${randomUUID()}@royal.gold`, roomCode: code, voiceActive: false }; room.clients.set(bot.id, bot); room.playerEmails.set(bot.email, bot.id); }
       try { await store.saveTable(table); } catch (storageError) { rooms.delete(code); client.roomCode = null; return error(ws, 'No se pudo guardar la mesa. Intenta de nuevo en unos segundos'); }
@@ -301,7 +309,7 @@ wss.on('connection', ws => {
       if (!room) {
         const storedTable = await store.findTableByCode(code);
         if (!storedTable) return error(ws, 'No encontramos una mesa con ese código');
-        room = { table: storedTable, clients: new Map(), playerEmails: new Map(), game: null, roundId: null, botRunning: false, needsRecoveryStart: storedTable.status === 'playing' };
+        room = { table: storedTable, clients: new Map(), playerEmails: new Map(), chat: [], game: null, roundId: null, botRunning: false, needsRecoveryStart: storedTable.status === 'playing' };
         rooms.set(code, room);
       }
       if (new Date(room.table.expiresAt) <= new Date()) { rooms.delete(code); await store.closeTable(room.table.id); return error(ws, 'El código de esta mesa ya caducó'); }
@@ -318,6 +326,8 @@ wss.on('connection', ws => {
       }
       if (returningId) send(ws, 'connected', { playerId: client.id, resumed: true });
       send(ws, 'joined_table', { table: publicTable(room) });
+      room.chat ||= [];
+      send(ws, 'chat_history', { messages: room.chat });
       broadcastRoom(room);
       if (room.game) { send(ws, 'game_state', { game: publicGame(room, client) }); if (room.game.finished) send(ws, 'game_result', { result: resultFor(room, client) }); }
       else await recoverInterruptedRoom(room);
@@ -354,11 +364,13 @@ wss.on('connection', ws => {
       const peers = [...room.clients.values()].filter(participant => participant.id !== client.id && participant.voiceActive).map(participant => ({ id: participant.id, name: participant.name }));
       send(ws, 'voice_peers', { peers });
       for (const participant of room.clients.values()) if (participant.id !== client.id && participant.voiceActive) send(participant.ws, 'voice_peer_joined', { peer: { id: client.id, name: client.name } });
+      broadcastRoom(room);
       return;
     }
     if (type === 'voice_leave') {
       client.voiceActive = false;
       for (const participant of room.clients.values()) if (participant.id !== client.id && participant.voiceActive) send(participant.ws, 'voice_peer_left', { peerId: client.id });
+      broadcastRoom(room);
       return;
     }
     if (type === 'voice_signal') {
@@ -371,6 +383,9 @@ wss.on('connection', ws => {
       const body = String(message.body || '').trim().slice(0, 240);
       if (!body) return;
       const chatMessage = { id: randomUUID(), playerId: client.id, name: client.name, body, createdAt: new Date().toISOString() };
+      room.chat ||= [];
+      room.chat.push(chatMessage);
+      room.chat = room.chat.slice(-100);
       for (const participant of room.clients.values()) send(participant.ws, 'chat_message', { message: chatMessage });
       return;
     }
