@@ -28,6 +28,9 @@ const voiceIceServers = [
     credential: String(process.env.VOICE_TURN_CREDENTIAL || '')
   }] : [])
 ];
+function isTableOwner(table, client) {
+  return Boolean((table?.hostId && client?.userId && table.hostId === client.userId) || (table?.host && client?.email && table.host.toLowerCase() === client.email.toLowerCase()));
+}
 async function verifyAccessToken(token) {
   if (store.mode !== 'supabase' || !token || !supabaseUrl || !supabaseSecretKey) return null;
   try {
@@ -288,7 +291,7 @@ async function startRoomGame(room, client) {
     if (bots.length && (bots.length !== 1 || room.clients.size !== 2)) return error(client.ws, 'Royal Gold AI solo puede jugar contra un usuario');
   }
   if (room.clients.size > maxPlayersByGame[room.table.gameId]) return error(client.ws, `Esta mesa admite máximo ${maxPlayersByGame[room.table.gameId]} participantes`);
-  if (room.table.hostId ? room.table.hostId !== client.userId : room.table.host !== client.email) return error(client.ws, 'Solo el anfitrión puede iniciar la partida');
+  if (!isTableOwner(room.table, client)) return error(client.ws, 'Solo el anfitrión puede iniciar la partida');
   if (room.game && !room.game.finished) return error(client.ws, 'La partida ya está en curso');
   room.table.status = 'playing'; room.roundId = randomUUID();
   const players = [...room.clients.values()].map(({ id, name, isBot }) => ({ id, name: isBot ? 'Royal Gold AI' : name }));
@@ -298,7 +301,7 @@ async function startRoomGame(room, client) {
 }
 async function recoverInterruptedRoom(room) {
   if (!room.needsRecoveryStart || room.game || room.clients.size < 2) return;
-  const host = [...room.clients.values()].find(participant => room.table.hostId ? participant.userId === room.table.hostId : participant.email === room.table.host);
+  const host = [...room.clients.values()].find(participant => isTableOwner(room.table, participant));
   if (!host) return;
   room.needsRecoveryStart = false;
   await startRoomGame(room, host);
@@ -402,13 +405,13 @@ wss.on('connection', ws => {
       if (!targetRoom) {
         const storedTable = await store.findTableByCode(code);
         if (!storedTable) return send(ws, 'table_deleted', { code, message: 'La mesa ya no estaba disponible y se retiró de tu listado' });
-        const storedIsHost = storedTable.hostId ? storedTable.hostId === client.userId : storedTable.host === client.email;
+        const storedIsHost = isTableOwner(storedTable, client);
         if (!storedIsHost) return error(ws, 'Solo el creador puede eliminar la mesa');
         try { await store.closeTable(storedTable.id); }
         catch (deleteError) { return error(ws, deleteError.message || 'No se pudo eliminar la mesa'); }
         return send(ws, 'table_deleted', { code, message: 'Mesa eliminada correctamente' });
       }
-      const isHost = targetRoom.table.hostId ? targetRoom.table.hostId === client.userId : targetRoom.table.host === client.email;
+      const isHost = isTableOwner(targetRoom.table, client);
       if (!isHost) return error(ws, 'Solo el creador puede eliminar la mesa');
       try { await deleteRoom(targetRoom, client, ws); }
       catch (deleteError) { return error(ws, deleteError.message || 'No se pudo eliminar la mesa'); }
