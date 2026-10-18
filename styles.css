@@ -638,6 +638,16 @@ html,body{overflow-x:hidden;max-width:100%}
   .game-table-wrap:has(.rummy-table) .rummy-actions .button{min-width:0!important;padding-inline:6px!important}
 }
 
+/* Final Rummy mobile correction: let the table grow with the larger cards. */
+@media (max-width:760px){
+  .game-table-wrap:has(.rummy-table){height:auto!important;min-height:0!important;overflow:visible!important;padding-bottom:112px!important}
+  .game-table-wrap:has(.rummy-table) .rummy-table{height:auto!important;min-height:0!important;flex:none!important;overflow:visible!important;padding-bottom:28px!important;gap:10px!important}
+  .game-table-wrap:has(.rummy-table) .rummy-cards{grid-template-columns:repeat(3,minmax(0,1fr))!important;grid-auto-rows:auto!important;gap:9px!important;max-height:none!important;overflow:visible!important;padding:12px 2px 12px!important}
+  .game-table-wrap:has(.rummy-table) .rummy-cards .rummy-card{height:120px!important;min-height:120px!important;border-radius:10px!important;padding:8px!important;font-size:1.05em!important}
+  .game-table-wrap:has(.rummy-table) .rummy-rule-note{margin:8px auto 0!important;padding:0 8px!important;line-height:1.55!important;color:#f0dfa5!important}
+  .game-table-wrap:has(.rummy-table)>p.muted{margin:14px 8px 0!important;line-height:1.45!important}
+}
+
 /* Unified French playing-card language for Blackjack, Poker, Rummy and Crazy Eights. */
 .blackjack-card,.poker-card,.rummy-card,.crazy-card{font-family:Georgia,'Times New Roman',serif!important;background:linear-gradient(145deg,#fffdf4 0%,#f1ead8 72%,#d5c49a 100%)!important;color:#17130e!important;border:1px solid #a88a47!important;box-shadow:0 10px 22px rgba(0,0,0,.58),0 0 0 2px rgba(255,224,124,.18),inset 0 1px #fff!important;position:relative;overflow:hidden}
 .blackjack-card::after,.poker-card::after,.rummy-card::after,.crazy-card::after{content:"";position:absolute;inset:4px;border:1px solid rgba(113,83,27,.26);border-radius:5px;pointer-events:none}
