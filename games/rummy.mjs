@@ -109,7 +109,7 @@ export function settleByMeldCount(game) {
 }
 
 export function createGame(players) {
-  if (players.length < 2 || players.length > 4) throw new Error('Rummy admite entre 2 y 4 jugadores');
+  if (players.length < 2 || players.length > 6) throw new Error('Rummy admite entre 2 y 6 jugadores');
   const cards = shuffle(deck());
   const handSize = 7;
   const game = {

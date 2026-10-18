@@ -4,6 +4,13 @@ import { createGame, discardCard, drawDiscard, drawStock, findMeld, layMeld, ser
 
 const players = [{ id: 'p1', name: 'Ana' }, { id: 'p2', name: 'Luis' }];
 
+test('admite mesas de Rummy de hasta seis jugadores', () => {
+  const sixPlayers = Array.from({ length: 6 }, (_, index) => ({ id: `p${index + 1}`, name: `Jugador ${index + 1}` }));
+  const game = createGame(sixPlayers);
+  assert.equal(game.players.length, 6);
+  assert.throws(() => createGame([...sixPlayers, { id: 'p7', name: 'Jugador 7' }]), /2 y 6/);
+});
+
 test('crea Rummy con siete cartas por jugador y descarte inicial', () => {
   const game = createGame(players);
   assert.equal(game.players[0].hand.length, 7);

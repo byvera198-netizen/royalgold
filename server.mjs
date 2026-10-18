@@ -281,8 +281,12 @@ async function runBotTurns(room) {
 async function startRoomGame(room, client) {
   if (!['uno', 'blackjack', 'domino', 'poker', 'rummy', 'crazy'].includes(room.table.gameId)) return error(client.ws, 'Esta mesa todavía no tiene un motor jugable');
   if (room.clients.size < 2) return error(client.ws, 'Se necesitan al menos dos participantes');
-  const maxPlayersByGame = { uno: 10, blackjack: 7, domino: 4, poker: 9, rummy: 4, crazy: 6 };
-  if (room.table.gameId === 'rummy' && room.clients.size !== 2) return error(client.ws, 'Rummy requiere dos participantes: jugadores invitados o Royal Gold AI');
+  const maxPlayersByGame = { uno: 10, blackjack: 7, domino: 4, poker: 9, rummy: 6, crazy: 6 };
+  if (room.table.gameId === 'rummy') {
+    const bots = [...room.clients.values()].filter(participant => participant.isBot);
+    if (room.clients.size < 2 || room.clients.size > 6) return error(client.ws, 'Rummy admite entre 2 y 6 participantes');
+    if (bots.length && (bots.length !== 1 || room.clients.size !== 2)) return error(client.ws, 'Royal Gold AI solo puede jugar contra un usuario');
+  }
   if (room.clients.size > maxPlayersByGame[room.table.gameId]) return error(client.ws, `Esta mesa admite máximo ${maxPlayersByGame[room.table.gameId]} participantes`);
   if (room.table.hostId ? room.table.hostId !== client.userId : room.table.host !== client.email) return error(client.ws, 'Solo el anfitrión puede iniciar la partida');
   if (room.game && !room.game.finished) return error(client.ws, 'La partida ya está en curso');
@@ -343,7 +347,8 @@ wss.on('connection', ws => {
       if (store.mode === 'supabase' && !client.userId) return error(ws, 'Inicia sesión para crear una mesa persistente');
       const solo = message.solo === true;
       const gameId = message.gameId === 'uno' ? 'uno' : String(message.gameId || 'uno');
-      const maxPlayers = solo || gameId === 'rummy' ? 2 : Math.max(2, Math.min(10, Number(message.maxPlayers) || 4));
+      const requestedMaxPlayers = Math.max(2, Math.min(gameId === 'rummy' ? 6 : 10, Number(message.maxPlayers) || 4));
+      const maxPlayers = solo ? 2 : requestedMaxPlayers;
       const table = { id: randomUUID(), code, name: String(message.name || 'Mesa Royal').slice(0, 60), gameId, gameName: String(message.gameName || 'UNO'), maxPlayers, private: message.private !== false, voice: message.voice !== false, stake: Math.max(0, Number(message.stake) || 0), solo, status: 'waiting', createdAt: new Date().toISOString(), expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), host: client.email, hostId: client.userId || null };
       const room = { table, clients: new Map(), playerEmails: new Map(), chat: [], game: null, roundId: null, botRunning: false, needsRecoveryStart: false };
       rooms.set(code, room); room.clients.set(client.id, client); if (client.email) room.playerEmails.set(client.email, client.id); client.roomCode = code;
@@ -363,6 +368,7 @@ wss.on('connection', ws => {
       const returningId = client.email ? room.playerEmails.get(client.email) : null;
       const existing = returningId ? room.clients.get(returningId) : null;
       if (existing?.ws?.readyState === 1) return error(ws, 'Este miembro ya está conectado a la mesa');
+      if (room.table.gameId === 'rummy' && room.table.solo && room.clients.size >= 2 && !returningId) return error(ws, 'Esta mesa está configurada para jugar solo contra Royal Gold AI');
       if (room.clients.size >= room.table.maxPlayers && !returningId) return error(ws, 'Esta mesa ya está completa');
       if (returningId && !existing) client.id = returningId;
       room.clients.set(client.id, client); if (client.email) room.playerEmails.set(client.email, client.id); client.roomCode = code;
@@ -383,6 +389,7 @@ wss.on('connection', ws => {
     if (type === 'add_bot') {
       const room = rooms.get(client.roomCode); if (!room || room.clients.size >= room.table.maxPlayers) return;
       if (room.table.solo) return error(ws, 'Esta mesa ya tiene un rival de Royal Gold AI');
+      if (room.table.gameId === 'rummy' && room.clients.size !== 1) return error(ws, 'Royal Gold AI solo puede añadirse a una mesa con un usuario');
       const bot = { ws: null, isBot: true, id: `bot-${randomUUID()}`, name: 'Royal Gold AI', email: `bot-${room.clients.size}@local`, roomCode: client.roomCode, voiceActive: false };
       room.table.solo = true;
       room.clients.set(bot.id, bot); room.playerEmails.set(bot.email, bot.id);
