@@ -336,8 +336,11 @@ wss.on('connection', ws => {
     if (type === 'add_bot') {
       const room = rooms.get(client.roomCode); if (!room || room.clients.size >= room.table.maxPlayers) return;
       if (room.table.solo) return error(ws, 'Esta mesa ya tiene un rival de Royal Gold AI');
-      const bot = { ws: null, id: `bot-${randomUUID()}`, name: `Rival de prueba ${String(room.clients.size).padStart(2, '0')}`, email: `bot-${room.clients.size}@local`, roomCode: client.roomCode };
-      room.clients.set(bot.id, bot); room.playerEmails.set(bot.email, bot.id); broadcastRoom(room); return;
+      const bot = { ws: null, isBot: true, id: `bot-${randomUUID()}`, name: `Rival de prueba ${String(room.clients.size).padStart(2, '0')}`, email: `bot-${room.clients.size}@local`, roomCode: client.roomCode, voiceActive: false };
+      room.table.solo = true;
+      room.clients.set(bot.id, bot); room.playerEmails.set(bot.email, bot.id);
+      await store.saveTable(room.table);
+      broadcastRoom(room); return;
     }
     if (type === 'delete_table') {
       const code = String(message.code || client.roomCode || '').trim().toUpperCase();
