@@ -219,14 +219,36 @@ function botStep(room) {
   }
   return false;
 }
+function recoverBotStep(room) {
+  const game = room.game;
+  const bot = botForTurn(room);
+  if (!game || !bot) return false;
+  try {
+    if (game.kind === 'uno') { drawCard(game, bot.id); return true; }
+    if (game.kind === 'crazy') { crazyDrawCard(game, bot.id); return true; }
+    if (game.kind === 'blackjack') { blackjackStand(game, bot.id); return true; }
+    if (game.kind === 'domino') { dominoPass(game, bot.id); return true; }
+    if (game.kind === 'poker') { pokerAct(game, bot.id, 'fold'); return true; }
+    if (game.kind === 'rummy') {
+      if (game.phase === 'draw') rummyDrawStock(game, bot.id);
+      else rummyDiscard(game, bot.id, rummyDiscardIndex(game.players[game.currentPlayer].hand));
+      return true;
+    }
+  } catch (recoveryError) { console.error('Royal Gold AI recovery error:', recoveryError); }
+  return false;
+}
 async function runBotTurns(room) {
-  if (!room.table.solo || room.botRunning) return;
+  if (!botForTurn(room) || room.botRunning) return;
   room.botRunning = true;
   try {
     for (let turn = 0; turn < 200 && room.game && !room.game.finished; turn += 1) {
       if (!botForTurn(room)) break;
       await botDelay(650);
-      botStep(room);
+      try { botStep(room); }
+      catch (botError) {
+        console.error('Royal Gold AI turn error:', botError);
+        if (!recoverBotStep(room)) break;
+      }
       if (room.game.finished) { room.table.status = 'finished'; broadcastResult(room); }
       await store.saveTable(room.table);
       broadcastGame(room); broadcastRoom(room);
@@ -403,14 +425,14 @@ wss.on('connection', ws => {
       try { if (type === 'draw_card') drawCard(room.game, client.id); else playCard(room.game, client.id, message.index, message.chosenColor); }
       catch (playError) { return error(ws, playError.message); }
       if (room.game.finished) { room.table.status = 'finished'; await store.saveTable(room.table); broadcastResult(room); }
-      broadcastGame(room); broadcastRoom(room); if (room.table.solo) void runBotTurns(room); return;
+      broadcastGame(room); broadcastRoom(room); if (botForTurn(room)) void runBotTurns(room); return;
     }
     if (type === 'blackjack_hit' || type === 'blackjack_stand') {
       if (!room.game || room.game.kind !== 'blackjack' || room.game.finished) return error(ws, 'La ronda de 21 no está activa');
       try { if (type === 'blackjack_hit') blackjackHit(room.game, client.id); else blackjackStand(room.game, client.id); }
       catch (playError) { return error(ws, playError.message); }
       if (room.game.finished) { room.table.status = 'finished'; broadcastResult(room); }
-      await store.saveTable(room.table); broadcastGame(room); broadcastRoom(room); if (room.table.solo) void runBotTurns(room); return;
+      await store.saveTable(room.table); broadcastGame(room); broadcastRoom(room); if (botForTurn(room)) void runBotTurns(room); return;
     }
     if (type === 'domino_place' || type === 'domino_draw' || type === 'domino_pass') {
       if (!room.game || room.game.kind !== 'domino' || room.game.finished) return error(ws, 'La ronda de dominó no está activa');
@@ -420,14 +442,14 @@ wss.on('connection', ws => {
         else dominoPass(room.game, client.id);
       } catch (playError) { return error(ws, playError.message); }
       if (room.game.finished) { room.table.status = 'finished'; broadcastResult(room); }
-      await store.saveTable(room.table); broadcastGame(room); broadcastRoom(room); if (room.table.solo) void runBotTurns(room); return;
+      await store.saveTable(room.table); broadcastGame(room); broadcastRoom(room); if (botForTurn(room)) void runBotTurns(room); return;
     }
     if (type === 'poker_check' || type === 'poker_call' || type === 'poker_raise' || type === 'poker_fold') {
       if (!room.game || room.game.kind !== 'poker' || room.game.finished) return error(ws, 'La mano de póker no está activa');
       try { pokerAct(room.game, client.id, type.replace('poker_', ''), message.amount); }
       catch (playError) { return error(ws, playError.message); }
       if (room.game.finished) { room.table.status = 'finished'; broadcastResult(room); }
-      await store.saveTable(room.table); broadcastGame(room); broadcastRoom(room); if (room.table.solo) void runBotTurns(room); return;
+      await store.saveTable(room.table); broadcastGame(room); broadcastRoom(room); if (botForTurn(room)) void runBotTurns(room); return;
     }
     if (normalizedType === 'rummy_draw_stock' || normalizedType === 'rummy_draw_discard' || normalizedType === 'rummy_discard' || normalizedType === 'rummy_meld') {
       if (!room.game || room.game.kind !== 'rummy' || room.game.finished) return error(ws, 'La ronda de Rummy no está activa');
@@ -438,14 +460,14 @@ wss.on('connection', ws => {
         else rummyDiscard(room.game, client.id, Number(message.index));
       } catch (playError) { return error(ws, playError.message); }
       if (room.game.finished) { room.table.status = 'finished'; broadcastResult(room); }
-      await store.saveTable(room.table); broadcastGame(room); broadcastRoom(room); if (room.table.solo) void runBotTurns(room); return;
+      await store.saveTable(room.table); broadcastGame(room); broadcastRoom(room); if (botForTurn(room)) void runBotTurns(room); return;
     }
     if (type === 'crazy_play_card' || type === 'crazy_draw_card') {
       if (!room.game || room.game.kind !== 'crazy' || room.game.finished) return error(ws, 'La ronda de Crazy Eights no está activa');
       try { if (type === 'crazy_play_card') crazyPlayCard(room.game, client.id, Number(message.index), message.chosenSuit); else crazyDrawCard(room.game, client.id); }
       catch (playError) { return error(ws, playError.message); }
       if (room.game.finished) { room.table.status = 'finished'; await store.saveTable(room.table); broadcastResult(room); }
-      broadcastGame(room); broadcastRoom(room); if (room.table.solo) void runBotTurns(room); return;
+      broadcastGame(room); broadcastRoom(room); if (botForTurn(room)) void runBotTurns(room); return;
     }
     if (type === 'leave_table') {
       if (client.voiceActive) for (const participant of room.clients.values()) if (participant.id !== client.id && participant.voiceActive) send(participant.ws, 'voice_peer_left', { peerId: client.id });
