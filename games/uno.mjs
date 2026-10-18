@@ -96,7 +96,7 @@ export function drawCard(game, playerId) {
 export function serializeGame(game, playerId) {
   return {
     turn: game.turn, direction: game.direction, currentColor: game.currentColor, discard: game.discard.at(-1),
-    players: game.players.map((player, index) => ({ id: player.id, name: player.name, handCount: player.hand.length, connected: player.connected !== false, isMe: player.id === playerId, index })),
+    players: game.players.map((player, index) => ({ id: player.id, name: player.name, hand: game.finished ? player.hand : undefined, handCount: player.hand.length, connected: player.connected !== false, isMe: player.id === playerId, index })),
     hand: game.players.find(player => player.id === playerId)?.hand || [], finished: game.finished, winnerId: game.winnerId,
     myIndex: game.players.findIndex(player => player.id === playerId), myTurn: game.players[game.turn]?.id === playerId, lastAction: game.lastAction
   };

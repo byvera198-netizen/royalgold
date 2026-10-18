@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createDeck, createGame, drawCard, isPlayable, playCard, COLORS } from '../games/uno.mjs';
+import { createDeck, createGame, drawCard, isPlayable, playCard, serializeGame, COLORS } from '../games/uno.mjs';
 
 const players = [{ id: 'a', name: 'Ana' }, { id: 'b', name: 'Bruno' }, { id: 'c', name: 'Cata' }];
 const fixedRng = max => max - 1;
@@ -52,4 +52,14 @@ test('ganar marca la partida y el ganador', () => {
   playCard(game, 'a', 0);
   assert.equal(game.finished, true);
   assert.equal(game.winnerId, 'a');
+});
+
+test('revela las manos de todos los jugadores al terminar', () => {
+  const game = createGame(players, fixedRng);
+  game.players[0].hand = [{ color: 'red', label: '7' }];
+  game.players[1].hand = [{ color: 'blue', label: '9' }];
+  game.discard = [{ color: 'red', label: '2' }]; game.currentColor = 'red'; game.turn = 0;
+  playCard(game, 'a', 0);
+  const view = serializeGame(game, 'a');
+  assert.ok(view.players.every(player => Array.isArray(player.hand)));
 });

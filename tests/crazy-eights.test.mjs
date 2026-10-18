@@ -40,3 +40,10 @@ test('jugar un ocho exige palo y avanza la ronda', () => {
   assert.equal(game.currentSuit, '♦');
   assert.equal(game.currentPlayer, 1);
 });
+
+test('revela las manos de todos los jugadores al terminar', () => {
+  const game = createGame(players);
+  game.finished = true;
+  const view = serializeGame(game, 'p1');
+  assert.ok(view.players.every(player => Array.isArray(player.hand)));
+});

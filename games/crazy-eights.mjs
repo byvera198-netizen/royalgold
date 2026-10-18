@@ -51,5 +51,5 @@ export function drawCard(game, playerId) {
 }
 
 export function serializeGame(game, viewerId) {
-  return { kind: game.kind, phase: game.finished ? 'finished' : 'playing', finished: game.finished, winnerId: game.winnerId, activePlayerId: game.players[game.currentPlayer]?.id || null, currentSuit: game.currentSuit, stockCount: game.stock.length, discard: game.discard.at(-1), turnNumber: game.turnNumber, lastAction: game.lastAction, myTurn: game.players[game.currentPlayer]?.id === viewerId, hand: game.players.find(player => player.id === viewerId)?.hand || [], players: game.players.map(player => ({ id: player.id, name: player.name, handCount: player.hand.length, isMe: player.id === viewerId })) };
+  return { kind: game.kind, phase: game.finished ? 'finished' : 'playing', finished: game.finished, winnerId: game.winnerId, activePlayerId: game.players[game.currentPlayer]?.id || null, currentSuit: game.currentSuit, stockCount: game.stock.length, discard: game.discard.at(-1), turnNumber: game.turnNumber, lastAction: game.lastAction, myTurn: game.players[game.currentPlayer]?.id === viewerId, hand: game.players.find(player => player.id === viewerId)?.hand || [], players: game.players.map(player => ({ id: player.id, name: player.name, hand: game.finished ? player.hand : undefined, handCount: player.hand.length, isMe: player.id === viewerId })) };
 }
