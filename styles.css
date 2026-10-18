@@ -610,3 +610,20 @@ html,body{overflow-x:hidden;max-width:100%}
   .table-social-panel{left:12px!important;right:12px!important;top:auto!important;bottom:84px!important;width:auto!important;max-height:calc(100dvh - 104px)!important;border-radius:18px!important}
   .table-social-panel .chat-feed{max-height:24vh}
 }
+
+/* UNO mobile hand: cards occupy their own clear area instead of stacking over the board/actions. */
+@media (max-width:760px){
+  .game-table-wrap:has(.game-table){padding-bottom:14px}
+  .game-table-wrap:has(.game-table) .game-table{min-height:680px!important;height:680px!important;border-radius:28px!important;overflow:hidden!important}
+  .game-table-wrap:has(.game-table) .table-center{inset:112px 0 auto!important;height:190px!important;place-items:center!important}
+  .game-table-wrap:has(.game-table) .center-stack{margin-top:0!important;gap:12px!important}
+  .game-table-wrap:has(.game-table) .uno-board{gap:12px!important}
+  .game-table-wrap:has(.game-table) .draw-pile,.game-table-wrap:has(.game-table) .discard{width:58px!important;height:82px!important}
+  .game-table-wrap:has(.game-table) .player-hand{left:10px!important;right:10px!important;bottom:92px!important;transform:none!important;width:auto!important;max-width:none!important;display:grid!important;grid-template-columns:repeat(4,minmax(0,1fr))!important;justify-content:stretch!important;align-items:end!important;gap:7px!important;padding:10px 8px!important;border:1px solid rgba(255,219,105,.34);border-radius:16px;background:linear-gradient(145deg,rgba(29,20,7,.9),rgba(3,3,3,.74));box-shadow:0 12px 28px rgba(0,0,0,.48),inset 0 1px rgba(255,245,180,.12)}
+  .game-table-wrap:has(.game-table) .player-hand .uno-card{width:100%!important;height:62px!important;min-width:0!important;font-size:18px!important}
+  .game-table-wrap:has(.game-table) .turn-timer{right:13px!important;bottom:15px!important}
+  .game-table-wrap:has(.game-table) .table-seat.seat-2{right:12px!important;top:39%!important}
+  .game-table-wrap:has(.game-table) .table-seat.seat-3{left:12px!important;top:39%!important}
+  .game-table-wrap:has(.game-table) .table-controls{display:grid!important;grid-template-columns:repeat(3,minmax(0,1fr));gap:7px!important;margin-top:12px!important}
+  .game-table-wrap:has(.game-table) .table-controls .button{min-width:0!important;padding:10px 5px!important;font-size:10px!important}
+}
