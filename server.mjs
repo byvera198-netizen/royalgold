@@ -282,7 +282,7 @@ async function startRoomGame(room, client) {
   if (!['uno', 'blackjack', 'domino', 'poker', 'rummy', 'crazy'].includes(room.table.gameId)) return error(client.ws, 'Esta mesa todavía no tiene un motor jugable');
   if (room.clients.size < 2) return error(client.ws, 'Se necesitan al menos dos participantes');
   const maxPlayersByGame = { uno: 10, blackjack: 7, domino: 4, poker: 9, rummy: 4, crazy: 6 };
-  if (room.table.gameId === 'rummy' && (room.clients.size !== 2 || ![...room.clients.values()].some(participant => participant.isBot))) return error(client.ws, 'Rummy se juega únicamente entre tú y un bot');
+  if (room.table.gameId === 'rummy' && room.clients.size !== 2) return error(client.ws, 'Rummy requiere dos participantes: jugadores invitados o Royal Gold AI');
   if (room.clients.size > maxPlayersByGame[room.table.gameId]) return error(client.ws, `Esta mesa admite máximo ${maxPlayersByGame[room.table.gameId]} participantes`);
   if (room.table.hostId ? room.table.hostId !== client.userId : room.table.host !== client.email) return error(client.ws, 'Solo el anfitrión puede iniciar la partida');
   if (room.game && !room.game.finished) return error(client.ws, 'La partida ya está en curso');
