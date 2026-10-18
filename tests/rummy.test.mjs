@@ -17,6 +17,8 @@ test('protege el turno y las manos privadas', () => {
   const game = createGame(players);
   assert.throws(() => drawStock(game, 'p2'), /No es tu turno/);
   const view = serializeGame(game, 'p1');
+  assert.equal(view.hand.length, 7);
+  assert.equal(view.players.find(player => player.id === 'p1').isMe, true);
   assert.equal(view.players.find(player => player.id === 'p1').hand.length, 7);
   assert.equal(view.players.find(player => player.id === 'p2').hand, undefined);
 });

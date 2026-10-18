@@ -136,9 +136,14 @@ export function serializeGame(game, viewerId) {
     turnNumber: game.turnNumber,
     stockCount: game.stock.length,
     discard: game.discard.at(-1) || null,
+    // Expose only the requesting player's private hand at the top level.
+    // This lets the client render the initial deal even if player identity
+    // synchronization and the first game_state render arrive in the same tick.
+    hand: viewer?.hand || [],
     players: game.players.map(player => ({
       id: player.id,
       name: player.name,
+      isMe: player.id === viewerId,
       hand: player.id === viewerId || game.finished ? player.hand : undefined,
       handCount: player.hand.length,
       melds: player.melds
