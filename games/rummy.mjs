@@ -35,7 +35,8 @@ function nextTurn(game) {
 function finish(game, winnerId) {
   game.finished = true;
   game.phase = 'finished';
-  game.winnerId = winnerId;
+  game.winnerIds = Array.isArray(winnerId) ? winnerId : [winnerId];
+  game.winnerId = game.winnerIds.length === 1 ? game.winnerIds[0] : null;
 }
 
 function cardKey(card) {
@@ -62,6 +63,51 @@ export function validMeld(cards) {
   return unique.size === cards.length && (isGroup(cards) || isSequence(cards));
 }
 
+function combinations(cards, size, start = 0, picked = [], output = []) {
+  if (picked.length === size) { output.push(picked.slice()); return output; }
+  for (let index = start; index <= cards.length - (size - picked.length); index += 1) {
+    picked.push(cards[index]);
+    combinations(cards, size, index + 1, picked, output);
+    picked.pop();
+  }
+  return output;
+}
+
+export function findMeld(cards) {
+  for (let size = cards.length; size >= 3; size -= 1) {
+    const found = combinations(cards, size).find(validMeld);
+    if (found) return found;
+  }
+  return null;
+}
+
+function bestMeldCount(cards) {
+  let best = { count: 0, covered: 0 };
+  for (let size = 3; size <= cards.length; size += 1) {
+    for (const meld of combinations(cards, size)) {
+      if (!validMeld(meld)) continue;
+      const remaining = cards.filter(card => !meld.some(item => cardKey(item) === cardKey(card)));
+      const next = bestMeldCount(remaining);
+      const candidate = { count: next.count + 1, covered: next.covered + meld.length };
+      if (candidate.count > best.count || (candidate.count === best.count && candidate.covered > best.covered)) best = candidate;
+    }
+  }
+  return best;
+}
+
+export function settleByMeldCount(game) {
+  const standings = game.players.map(player => {
+    const existing = player.melds.flat();
+    const remaining = bestMeldCount(player.hand);
+    return { id: player.id, groups: player.melds.length + remaining.count, covered: existing.length + remaining.covered };
+  });
+  const highestGroups = Math.max(...standings.map(item => item.groups), 0);
+  const winners = standings.filter(item => item.groups === highestGroups);
+  game.scores = standings;
+  finish(game, winners.map(item => item.id));
+  return winners;
+}
+
 export function createGame(players) {
   if (players.length < 2 || players.length > 4) throw new Error('Rummy admite entre 2 y 4 jugadores');
   const cards = shuffle(deck());
@@ -86,7 +132,7 @@ export function createGame(players) {
 export function drawStock(game, playerId) {
   const current = activePlayer(game, playerId);
   if (game.phase !== 'draw') throw new Error('Ya robaste; ahora debes descartar');
-  if (!game.stock.length) throw new Error('El pozo está vacío');
+  if (!game.stock.length) { settleByMeldCount(game); return null; }
   current.hand.push(game.stock.pop());
   game.phase = 'discard';
   return current.hand.at(-1);
@@ -96,7 +142,7 @@ export function drawDiscard(game, playerId) {
   const current = activePlayer(game, playerId);
   if (game.phase !== 'draw') throw new Error('Ya robaste; ahora debes descartar');
   const card = game.discard.pop();
-  if (!card) throw new Error('No hay cartas en el descarte');
+  if (!card) { settleByMeldCount(game); return null; }
   current.hand.push(card);
   game.phase = 'discard';
   return card;
@@ -110,6 +156,7 @@ export function layMeld(game, playerId, indices) {
   if (cards.some(card => !card) || !validMeld(cards)) throw new Error('Esa combinación no es válida');
   current.hand = current.hand.filter((_, index) => !indices.includes(index));
   current.melds.push(cards);
+  if (!current.hand.length) finish(game, playerId);
   return cards;
 }
 
@@ -132,6 +179,8 @@ export function serializeGame(game, viewerId) {
     phase: game.phase,
     finished: game.finished,
     winnerId: game.winnerId,
+    winnerIds: game.winnerIds || [],
+    scores: game.scores || [],
     activePlayerId: game.players[game.currentPlayer]?.id || null,
     turnNumber: game.turnNumber,
     stockCount: game.stock.length,
@@ -146,7 +195,8 @@ export function serializeGame(game, viewerId) {
       isMe: player.id === viewerId,
       hand: player.id === viewerId || game.finished ? player.hand : undefined,
       handCount: player.hand.length,
-      melds: player.melds
+      melds: player.melds,
+      groupCount: game.scores?.find(score => score.id === player.id)?.groups || player.melds.length
     })),
     myTurn: viewer?.id === game.players[game.currentPlayer]?.id
   };

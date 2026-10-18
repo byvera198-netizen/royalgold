@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createGame, discardCard, drawDiscard, drawStock, layMeld, serializeGame, validMeld } from '../games/rummy.mjs';
+import { createGame, discardCard, drawDiscard, drawStock, findMeld, layMeld, serializeGame, validMeld } from '../games/rummy.mjs';
 
 const players = [{ id: 'p1', name: 'Ana' }, { id: 'p2', name: 'Luis' }];
 
@@ -47,4 +47,51 @@ test('valida grupos y escaleras, y registra combinaciones', () => {
   layMeld(game, 'p1', [0, 1, 2]);
   assert.equal(current.melds.length, 1);
   assert.equal(current.hand.length, 7);
+});
+
+test('gana inmediatamente al cerrar dos combinaciones 3+4', () => {
+  const game = createGame(players);
+  game.players[0].hand = [
+    { id: '2-♥', rank: '2', value: 2, suit: '♥' },
+    { id: '3-♥', rank: '3', value: 3, suit: '♥' },
+    { id: '4-♥', rank: '4', value: 4, suit: '♥' },
+    { id: '7-♣', rank: '7', value: 7, suit: '♣' },
+    { id: '7-♦', rank: '7', value: 7, suit: '♦' },
+    { id: '7-♥', rank: '7', value: 7, suit: '♥' },
+    { id: '7-♠', rank: '7', value: 7, suit: '♠' }
+  ];
+  game.currentPlayer = 0;
+  game.phase = 'discard';
+  layMeld(game, 'p1', [0, 1, 2]);
+  assert.equal(game.finished, false);
+  layMeld(game, 'p1', [0, 1, 2, 3]);
+  assert.equal(game.finished, true);
+  assert.deepEqual(game.winnerIds, ['p1']);
+});
+
+test('reconoce escaleras y grupos, y resuelve al agotarse el pozo', () => {
+  const sequence = [
+    { id: 'Q-♠', rank: 'Q', value: 12, suit: '♠' },
+    { id: 'K-♠', rank: 'K', value: 13, suit: '♠' },
+    { id: 'A-♠', rank: 'A', value: 14, suit: '♠' }
+  ];
+  const group = [
+    { id: '9-♠', rank: '9', value: 9, suit: '♠' },
+    { id: '9-♥', rank: '9', value: 9, suit: '♥' },
+    { id: '9-♦', rank: '9', value: 9, suit: '♦' }
+  ];
+  assert.equal(validMeld(sequence), true);
+  assert.equal(validMeld(group), true);
+  assert.equal(findMeld([...sequence, ...group]).length, 3);
+  const game = createGame(players);
+  game.players[0].hand = [...sequence, ...group, { id: '2-♣', rank: '2', value: 2, suit: '♣' }];
+  game.players[1].hand = [{ id: '5-♣', rank: '5', value: 5, suit: '♣' }, { id: '8-♣', rank: '8', value: 8, suit: '♣' }];
+  game.stock = [];
+  game.discard = [{ id: '4-♦', rank: '4', value: 4, suit: '♦' }];
+  game.phase = 'draw';
+  game.currentPlayer = 0;
+  drawStock(game, 'p1');
+  assert.equal(game.finished, true);
+  assert.deepEqual(game.winnerIds, ['p1']);
+  assert.equal(game.scores.find(score => score.id === 'p1').groups, 2);
 });

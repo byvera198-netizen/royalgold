@@ -8,7 +8,7 @@ import { createGame, drawCard, isPlayable as unoPlayable, playCard, serializeGam
 import { createGame as createBlackjackGame, handValue as blackjackHandValue, hit as blackjackHit, stand as blackjackStand, serializeGame as serializeBlackjackGame } from './games/blackjack.mjs';
 import { createGame as createDominoGame, botMove as dominoBotMove, drawTile as dominoDraw, placeTile as dominoPlace, pass as dominoPass, serializeGame as serializeDominoGame } from './games/domino.mjs';
 import { act as pokerAct, createGame as createPokerGame, serializeGame as serializePokerGame } from './games/poker.mjs';
-import { createGame as createRummyGame, discardCard as rummyDiscard, drawDiscard as rummyDrawDiscard, drawStock as rummyDrawStock, layMeld as rummyLayMeld, serializeGame as serializeRummyGame } from './games/rummy.mjs';
+import { createGame as createRummyGame, discardCard as rummyDiscard, drawDiscard as rummyDrawDiscard, drawStock as rummyDrawStock, findMeld as rummyFindMeld, layMeld as rummyLayMeld, serializeGame as serializeRummyGame } from './games/rummy.mjs';
 import { createGame as createCrazyGame, drawCard as crazyDrawCard, isPlayable as crazyPlayable, playCard as crazyPlayCard, serializeGame as serializeCrazyGame } from './games/crazy-eights.mjs';
 import { createStore } from './server/store.mjs';
 
@@ -217,8 +217,16 @@ function botStep(room) {
     return true;
   }
   if (game.kind === 'rummy') {
-    if (game.phase === 'draw') rummyDrawStock(game, bot.id);
-    else rummyDiscard(game, bot.id, rummyDiscardIndex(view.hand));
+    if (game.phase === 'draw') {
+      rummyDrawStock(game, bot.id);
+      if (game.finished) return true;
+    }
+    let meld;
+    while (!game.finished && game.phase === 'discard' && (meld = rummyFindMeld(game.players.find(player => player.id === bot.id)?.hand || []))) {
+      const hand = game.players.find(player => player.id === bot.id).hand;
+      rummyLayMeld(game, bot.id, meld.map(card => hand.findIndex(item => item.id === card.id)));
+    }
+    if (!game.finished) rummyDiscard(game, bot.id, rummyDiscardIndex(game.players.find(player => player.id === bot.id)?.hand || view.hand));
     return true;
   }
   return false;
@@ -236,8 +244,16 @@ function recoverBotStep(room) {
     if (game.kind === 'domino') { dominoPass(game, bot.id); return true; }
     if (game.kind === 'poker') { pokerAct(game, bot.id, 'fold'); return true; }
     if (game.kind === 'rummy') {
-      if (game.phase === 'draw') rummyDrawStock(game, bot.id);
-      else rummyDiscard(game, bot.id, rummyDiscardIndex(view.hand));
+      if (game.phase === 'draw') {
+        rummyDrawStock(game, bot.id);
+        if (game.finished) return true;
+      }
+      let meld;
+      while (!game.finished && game.phase === 'discard' && (meld = rummyFindMeld(game.players.find(player => player.id === bot.id)?.hand || []))) {
+        const hand = game.players.find(player => player.id === bot.id).hand;
+        rummyLayMeld(game, bot.id, meld.map(card => hand.findIndex(item => item.id === card.id)));
+      }
+      if (!game.finished) rummyDiscard(game, bot.id, rummyDiscardIndex(game.players.find(player => player.id === bot.id)?.hand || view.hand));
       return true;
     }
   } catch (recoveryError) { console.error('Royal Gold AI recovery error:', recoveryError); }
@@ -266,6 +282,7 @@ async function startRoomGame(room, client) {
   if (!['uno', 'blackjack', 'domino', 'poker', 'rummy', 'crazy'].includes(room.table.gameId)) return error(client.ws, 'Esta mesa todavía no tiene un motor jugable');
   if (room.clients.size < 2) return error(client.ws, 'Se necesitan al menos dos participantes');
   const maxPlayersByGame = { uno: 10, blackjack: 7, domino: 4, poker: 9, rummy: 4, crazy: 6 };
+  if (room.table.gameId === 'rummy' && (room.clients.size !== 2 || ![...room.clients.values()].some(participant => participant.isBot))) return error(client.ws, 'Rummy se juega únicamente entre tú y un bot');
   if (room.clients.size > maxPlayersByGame[room.table.gameId]) return error(client.ws, `Esta mesa admite máximo ${maxPlayersByGame[room.table.gameId]} participantes`);
   if (room.table.hostId ? room.table.hostId !== client.userId : room.table.host !== client.email) return error(client.ws, 'Solo el anfitrión puede iniciar la partida');
   if (room.game && !room.game.finished) return error(client.ws, 'La partida ya está en curso');
@@ -325,7 +342,9 @@ wss.on('connection', ws => {
       const code = roomCode();
       if (store.mode === 'supabase' && !client.userId) return error(ws, 'Inicia sesión para crear una mesa persistente');
       const solo = message.solo === true;
-      const table = { id: randomUUID(), code, name: String(message.name || 'Mesa Royal').slice(0, 60), gameId: message.gameId === 'uno' ? 'uno' : String(message.gameId || 'uno'), gameName: String(message.gameName || 'UNO'), maxPlayers: solo ? 2 : Math.max(2, Math.min(10, Number(message.maxPlayers) || 4)), private: message.private !== false, voice: message.voice !== false, stake: Math.max(0, Number(message.stake) || 0), solo, status: 'waiting', createdAt: new Date().toISOString(), expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), host: client.email, hostId: client.userId || null };
+      const gameId = message.gameId === 'uno' ? 'uno' : String(message.gameId || 'uno');
+      const maxPlayers = solo || gameId === 'rummy' ? 2 : Math.max(2, Math.min(10, Number(message.maxPlayers) || 4));
+      const table = { id: randomUUID(), code, name: String(message.name || 'Mesa Royal').slice(0, 60), gameId, gameName: String(message.gameName || 'UNO'), maxPlayers, private: message.private !== false, voice: message.voice !== false, stake: Math.max(0, Number(message.stake) || 0), solo, status: 'waiting', createdAt: new Date().toISOString(), expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), host: client.email, hostId: client.userId || null };
       const room = { table, clients: new Map(), playerEmails: new Map(), chat: [], game: null, roundId: null, botRunning: false, needsRecoveryStart: false };
       rooms.set(code, room); room.clients.set(client.id, client); if (client.email) room.playerEmails.set(client.email, client.id); client.roomCode = code;
       if (solo) { const bot = { ws: null, isBot: true, id: `bot-${randomUUID()}`, name: 'Royal Gold AI', email: `bot-${randomUUID()}@royal.gold`, roomCode: code, voiceActive: false }; room.clients.set(bot.id, bot); room.playerEmails.set(bot.email, bot.id); }
