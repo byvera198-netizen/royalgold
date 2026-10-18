@@ -637,3 +637,14 @@ html,body{overflow-x:hidden;max-width:100%}
   .game-table-wrap:has(.rummy-table) .rummy-actions{width:100%!important;display:grid!important;grid-template-columns:repeat(2,minmax(0,1fr))!important}
   .game-table-wrap:has(.rummy-table) .rummy-actions .button{min-width:0!important;padding-inline:6px!important}
 }
+
+/* Unified French playing-card language for Blackjack, Poker, Rummy and Crazy Eights. */
+.blackjack-card,.poker-card,.rummy-card,.crazy-card{font-family:Georgia,'Times New Roman',serif!important;background:linear-gradient(145deg,#fffdf4 0%,#f1ead8 72%,#d5c49a 100%)!important;color:#17130e!important;border:1px solid #a88a47!important;box-shadow:0 10px 22px rgba(0,0,0,.58),0 0 0 2px rgba(255,224,124,.18),inset 0 1px #fff!important;position:relative;overflow:hidden}
+.blackjack-card::after,.poker-card::after,.rummy-card::after,.crazy-card::after{content:"";position:absolute;inset:4px;border:1px solid rgba(113,83,27,.26);border-radius:5px;pointer-events:none}
+.blackjack-card.red,.poker-card.red,.rummy-card.red,.crazy-card.red{color:#a71924!important}
+.blackjack-card small,.poker-card small,.rummy-card small,.crazy-card small{font-weight:700;text-shadow:0 1px rgba(255,255,255,.65)}
+.blackjack-card em,.poker-card em,.rummy-card em,.crazy-card em{font-style:normal;font-size:1.05em}
+.blackjack-card strong,.poker-card strong,.rummy-card strong,.crazy-card strong{font-family:Georgia,'Times New Roman',serif!important;font-weight:700}
+.blackjack-card.hidden,.poker-card.hidden,.crazy-card.hidden{background:repeating-linear-gradient(45deg,#17120b 0 7px,#b27b18 7px 9px,#17120b 9px 16px)!important;border:2px solid #f4d56e!important;color:transparent!important;box-shadow:0 10px 22px rgba(0,0,0,.62),inset 0 0 0 4px #241707!important}
+.blackjack-card.hidden::before,.poker-card.hidden::before,.crazy-card.hidden::before{content:"♛";position:absolute;inset:12px;display:grid;place-items:center;border:1px solid rgba(255,230,125,.65);border-radius:50%;color:#f4d56e;font-size:24px;text-shadow:0 0 10px #f4c844}
+.rummy-card-art{z-index:1}.rummy-corner,.rummy-ace,.rummy-court-rank,.rummy-court-suit,.rummy-pip{z-index:2}
