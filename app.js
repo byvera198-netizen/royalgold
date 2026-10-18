@@ -670,7 +670,7 @@ function pokerAction(type, amount) { if (rtSend(type, amount === undefined ? {} 
 const rummyPipLayouts = { '2':['tl','br'], '3':['tl','mc','br'], '4':['tl','tr','bl','br'], '5':['tl','tr','mc','bl','br'], '6':['tl','tr','ml','mr','bl','br'], '7':['tl','tr','ml','mc','mr','bl','br'], '8':['tl','tr','ml','mr','ul','ur','bl','br'], '9':['tl','tr','ml','mc','mr','bl','br','ul','ur'], '10':['tl','tr','ml','mr','ul','ur','ll','lr','bl','br'] };
 const rummyPipCoordinates = { tl:[22,15], tr:[78,15], ml:[22,38], mr:[78,38], ul:[22,28], ur:[78,28], mc:[50,50], ll:[22,72], lr:[78,72], bl:[22,85], br:[78,85] };
 function rummyCardFace(card) { const rank = escapeHtml(card?.rank || '?'); const suit = escapeHtml(card?.suit || ''); const red = ['♥','♦'].includes(card?.suit); const numeric = /^([2-9]|10)$/.test(String(card?.rank || '')); const court = ['J','Q','K'].includes(card?.rank); let art = numeric ? (rummyPipLayouts[card.rank] || []).map(position => { const [x, y] = rummyPipCoordinates[position]; return `<span class="rummy-pip" style="left:${x}%;top:${y}%">${suit}</span>`; }).join('') : court ? `<span class="rummy-court-portrait"><span class="rummy-court-half"><b class="rummy-court-rank">${rank}</b><i class="rummy-court-crown">♛</i><em class="rummy-court-suit">${suit}</em></span><span class="rummy-court-divider"></span><span class="rummy-court-half mirror"><b class="rummy-court-rank">${rank}</b><i class="rummy-court-crown">♛</i><em class="rummy-court-suit">${suit}</em></span></span>` : `<span class="rummy-ace">${suit}</span>`; return `<span class="rummy-corner top"><b>${rank}</b><em>${suit}</em></span><span class="rummy-card-art ${numeric?'pips':card?.rank==='A'?'ace':'court'} ${red?'red':''}">${art}</span><span class="rummy-corner bottom"><b>${rank}</b><em>${suit}</em></span>`; }
-function rummyCard(card, index, selectable = false, selected = false, reorderable = true) { if (!card) return ''; const red = ['♥','♦'].includes(card.suit); return `<button type="button" class="rummy-card ${red?'red':''} ${selected?'selected':''} ${selectable?'':'is-locked'}" draggable="${reorderable?'true':'false'}" data-action="rummy-select" data-index="${index}" aria-disabled="${selectable?'false':'true'}" aria-label="${selectable?(selected?'Quitar selección de':'Seleccionar'):'Reorganizar carta'} ${card.rank}${card.suit}">${rummyCardFace(card)}</button>`; }
+function rummyCard(card, index, selectable = false, selected = false, reorderable = true) { if (!card) return ''; const red = ['♥','♦'].includes(card.suit); return `<button type="button" class="rummy-card ${red?'red':''} ${selected?'selected':''} ${selectable?'':'is-locked'}" draggable="false" data-reorderable="${reorderable?'true':'false'}" data-action="rummy-select" data-index="${index}" aria-pressed="${selected?'true':'false'}" aria-disabled="${selectable?'false':'true'}" aria-label="${selectable?(selected?'Quitar selección de':'Seleccionar'):'Reorganizar carta'} ${card.rank}${card.suit}">${rummyCardFace(card)}</button>`; }
 function rummyDiscardCard(card) { if (!card) return '<span class="muted">Vacío</span>'; const red = ['♥','♦'].includes(card.suit); return `<div class="rummy-card ${red?'red':''}" aria-label="Carta en descarte ${card.rank}${card.suit}">${rummyCardFace(card)}</div>`; }
 function rummyView() {
   const game = state.rummy;
@@ -792,44 +792,65 @@ function resultOverlay(game) {
 }
 
 function render() { app.innerHTML = state.user ? (state.view==='waiting' ? shell(waitingView()) : state.view==='table' ? shell(state.currentTable?.gameId==='blackjack' ? blackjackView() : state.currentTable?.gameId==='domino' ? dominoView() : state.currentTable?.gameId==='poker' ? pokerView() : state.currentTable?.gameId==='rummy' ? rummyView() : state.currentTable?.gameId==='crazy' ? crazyView() : tableView()) : shell(({lobby:premiumLobbyView,games:premiumGamesView,friends:premiumFriendsView,history:historyView,stats:statsView,settings:settingsView,profile:profileView}[state.view] || premiumLobbyView)())) : authView(); attachEvents(); ensureSoloOption(); attachResultOverlay(); if (state.user) connectRealtime(); if (state.user?.accessToken && !state.user.profileLoaded && !state.user.profileLoading) void loadOwnProfile(); if (state.user && ['friends','waiting'].includes(state.view) && !state.social.loaded && !state.social.loading) void loadSocial(); dismissStartupSplash(); }
-let rummyLongPressTimer = null;
-document.addEventListener('dragstart', event => {
-  const card = event.target.closest?.('.rummy-card[draggable="true"]');
-  if (!card) return;
-  state.rummyDragIndex = Number(card.dataset.index);
-  card.classList.add('dragging');
-  if (event.dataTransfer) { event.dataTransfer.effectAllowed = 'move'; event.dataTransfer.setData('text/plain', String(state.rummyDragIndex)); }
-});
-document.addEventListener('dragover', event => {
-  const card = event.target.closest?.('.rummy-card[draggable="true"]');
-  if (!card || state.rummyDragIndex === null) return;
+let rummyPointerDrag = null;
+function rummyClearDropTargets() { document.querySelectorAll('.rummy-card.drop-target').forEach(item => item.classList.remove('drop-target')); }
+function rummyPointerCardAt(clientX, clientY) { return document.elementFromPoint(clientX, clientY)?.closest?.('.rummy-card[data-reorderable="true"]') || null; }
+function rummyStartPointerDrag(pointer) {
+  if (!pointer || pointer.active) return;
+  pointer.active = true;
+  state.rummyDragIndex = pointer.index;
+  pointer.card.classList.add('dragging');
+  pointer.card.setPointerCapture?.(pointer.pointerId);
+}
+function rummyFinishPointerDrag(event) {
+  const pointer = rummyPointerDrag;
+  if (!pointer) return false;
+  clearTimeout(pointer.timer);
+  rummyPointerDrag = null;
+  if (!pointer.active) return false;
   event.preventDefault();
-  document.querySelectorAll('.rummy-card.drop-target').forEach(item => item.classList.remove('drop-target'));
-  card.classList.add('drop-target');
-});
-document.addEventListener('drop', event => {
-  const card = event.target.closest?.('.rummy-card[draggable="true"]');
-  if (!card || state.rummyDragIndex === null) return;
-  event.preventDefault();
-  rummyReorderHand(state.rummyDragIndex, Number(card.dataset.index));
-});
-document.addEventListener('dragend', () => {
+  event.stopImmediatePropagation();
+  const target = rummyPointerCardAt(event.clientX, event.clientY);
+  const from = pointer.index;
+  const to = target ? Number(target.dataset.index) : from;
+  rummyClearDropTargets();
+  pointer.card.classList.remove('dragging');
   state.rummyDragIndex = null;
-  document.querySelectorAll('.rummy-card.dragging,.rummy-card.drop-target').forEach(item => item.classList.remove('dragging', 'drop-target'));
-});
+  if (Number.isInteger(to) && from !== to) rummyReorderHand(from, to);
+  else state.rummySuppressClick = true;
+  return true;
+}
 document.addEventListener('pointerdown', event => {
-  const card = event.target.closest?.('.rummy-card[draggable="true"]');
-  if (!card || event.pointerType === 'mouse') return;
-  clearTimeout(rummyLongPressTimer);
-  rummyLongPressTimer = setTimeout(() => { state.rummyDragIndex = Number(card.dataset.index); card.classList.add('dragging'); }, 320);
+  const card = event.target.closest?.('.rummy-card[data-reorderable="true"]');
+  if (!card || event.button > 0) return;
+  const pointer = { card, index: Number(card.dataset.index), pointerId: event.pointerId, startX: event.clientX, startY: event.clientY, active: false, timer: null };
+  rummyPointerDrag = pointer;
+  if (event.pointerType === 'mouse') return;
+  pointer.timer = window.setTimeout(() => rummyStartPointerDrag(pointer), 280);
+});
+document.addEventListener('pointermove', event => {
+  const pointer = rummyPointerDrag;
+  if (!pointer || pointer.pointerId !== event.pointerId) return;
+  const distance = Math.hypot(event.clientX - pointer.startX, event.clientY - pointer.startY);
+  if (event.pointerType === 'mouse' && distance > 5) rummyStartPointerDrag(pointer);
+  if (!pointer.active) return;
+  event.preventDefault();
+  const target = rummyPointerCardAt(event.clientX, event.clientY);
+  rummyClearDropTargets();
+  if (target && target !== pointer.card) target.classList.add('drop-target');
 });
 document.addEventListener('pointerup', event => {
-  clearTimeout(rummyLongPressTimer);
-  const card = event.target.closest?.('.rummy-card[draggable="true"]');
-  if (card && state.rummyDragIndex !== null) { const from = state.rummyDragIndex; const to = Number(card.dataset.index); if (from !== to) { event.preventDefault(); event.stopImmediatePropagation(); rummyReorderHand(from, to); } else { state.rummyDragIndex = null; card.classList.remove('dragging'); } }
+  const pointer = rummyPointerDrag;
+  if (!pointer || pointer.pointerId !== event.pointerId) return;
+  if (rummyFinishPointerDrag(event)) return;
+  rummyPointerDrag = null;
+});
+document.addEventListener('pointercancel', event => {
+  if (!rummyPointerDrag || rummyPointerDrag.pointerId !== event.pointerId) return;
+  clearTimeout(rummyPointerDrag.timer); rummyPointerDrag.card.classList.remove('dragging'); rummyClearDropTargets(); rummyPointerDrag = null; state.rummyDragIndex = null;
 });
 document.addEventListener('click',e=>{const button=e.target.closest?.('[data-action]');if(!button)return;const action=button.dataset.action;if((action==='start-uno')&&['blackjack','domino','poker'].includes(state.currentTable?.gameId)){e.preventDefault();e.stopImmediatePropagation();if(rtSend('start_game'))toast(`Preparando partida de ${state.currentTable.gameId==='domino'?'dominó':state.currentTable.gameId==='poker'?'póker':'21'}…`);return;}if(action==='blackjack-hit'){blackjackAction('blackjack_hit');return;}if(action==='blackjack-stand'){blackjackAction('blackjack_stand');return;}if(action==='blackjack-replay'||action==='domino-replay'||action==='poker-replay'){if(rtSend('start_game'))toast('Preparando una nueva ronda…');return;}if(action==='domino-place'){const tile=button;const side=window.prompt('Escribe izquierda o derecha', 'derecha')?.toLowerCase().startsWith('i')?'left':'right';dominoAction('domino_place',{index:Number(tile.dataset.index),side});return;}if(action==='domino-draw'){dominoAction('domino_draw');return;}if(action==='domino-pass'){dominoAction('domino_pass');return;}if(action.startsWith('poker-')){const amount=action==='poker-raise'?Number(document.querySelector('#poker-raise-amount')?.value):undefined;pokerAction(action,amount);return;}}, true);
-document.addEventListener('click', e => { const button = e.target.closest?.('[data-action]'); if (!button) return; const action = button.dataset.action; const gameId = state.currentTable?.gameId; if (gameId !== 'rummy') return; if (action === 'start-uno') { e.preventDefault(); e.stopImmediatePropagation(); if (rtSend('start_game')) toast('Preparando partida de Rummy…'); return; } if (action === 'rummy-draw-stock' || action === 'rummy-draw-discard') { e.preventDefault(); e.stopImmediatePropagation(); rummyAction(action); return; } if (action === 'rummy-select') { e.preventDefault(); e.stopImmediatePropagation(); const game = state.rummy; if (!game || game.activePlayerId !== state.realtime.playerId) return toast('Espera a que llegue tu turno', 'error'); if (game.phase !== 'discard') return toast('Primero roba una carta del pozo o del descarte', 'error'); const index = Number(button.dataset.index); const selected = state.rummySelection || []; state.rummySelection = selected.includes(index) ? selected.filter(item => item !== index) : [...selected, index]; render(); return; } if (action === 'rummy-discard-selected') { e.preventDefault(); e.stopImmediatePropagation(); const selected = state.rummySelection || []; if (selected.length !== 1) return toast(state.rummy?.phase === 'draw' ? 'Primero roba una carta y luego selecciona una para descartarla' : 'Selecciona una sola carta para descartarla', 'error'); state.rummySelection = []; rummyAction('rummy_discard', { index: selected[0] }); return; } if (action === 'rummy-discard') { e.preventDefault(); e.stopImmediatePropagation(); state.rummySelection = []; rummyAction(action, { index: Number(button.dataset.index) }); return; } if (action === 'rummy-meld') { e.preventDefault(); e.stopImmediatePropagation(); const indices = state.rummySelection || []; if (indices.length < 3) return toast(state.rummy?.phase === 'draw' ? 'Primero roba una carta y luego selecciona 3 o más' : 'Selecciona al menos tres cartas', 'error'); state.rummySelection = []; rummyAction(action, { indices }); return; } if (action === 'rummy-replay') { e.preventDefault(); e.stopImmediatePropagation(); state.rummySelection = []; if (rtSend('start_game')) toast('Preparando una nueva ronda…'); } }, true);
+document.addEventListener('click', e => { const button = e.target.closest?.('[data-action]'); if (!button) return; const action = button.dataset.action; const gameId = state.currentTable?.gameId; if (gameId !== 'rummy') return; if (action === 'rummy-select' && state.rummySuppressClick) { state.rummySuppressClick = false; e.preventDefault(); e.stopImmediatePropagation(); return; } if (action === 'start-uno') { e.preventDefault(); e.stopImmediatePropagation(); if (rtSend('start_game')) toast('Preparando partida de Rummy…'); return; } if (action === 'rummy-draw-stock' || action === 'rummy-draw-discard') { e.preventDefault(); e.stopImmediatePropagation(); rummyAction(action); return; } if (action === 'rummy-select') { e.preventDefault(); e.stopImmediatePropagation(); const game = state.rummy; if (!game || game.activePlayerId !== state.realtime.playerId) return toast('Espera a que llegue tu turno', 'error'); if (game.phase !== 'discard') return toast('Primero roba una carta del pozo o del descarte', 'error'); const index = Number(button.dataset.index); const selected = state.rummySelection || []; state.rummySelection = selected.includes(index) ? selected.filter(item => item !== index) : [...selected, index]; render(); return; } if (action === 'rummy-discard-selected') { e.preventDefault(); e.stopImmediatePropagation(); const selected = state.rummySelection || []; if (selected.length !== 1) return toast(state.rummy?.phase === 'draw' ? 'Primero roba una carta y luego selecciona una para descartarla' : 'Selecciona una sola carta para descartarla', 'error'); state.rummySelection = []; rummyAction('rummy_discard', { index: selected[0] }); return; } if (action === 'rummy-discard') { e.preventDefault(); e.stopImmediatePropagation(); state.rummySelection = []; rummyAction(action, { index: Number(button.dataset.index) }); return; } if (action === 'rummy-meld') { e.preventDefault(); e.stopImmediatePropagation(); const indices = state.rummySelection || []; if (indices.length < 3) return toast(state.rummy?.phase === 'draw' ? 'Primero roba una carta y luego selecciona 3 o más' : 'Selecciona al menos tres cartas', 'error'); state.rummySelection = []; rummyAction(action, { indices }); return; } if (action === 'rummy-replay') { e.preventDefault(); e.stopImmediatePropagation(); state.rummySelection = []; if (rtSend('start_game')) toast('Preparando una nueva ronda…'); } }, true);
 document.addEventListener('click',e=>{const button=e.target.closest?.('[data-action]');if(!button)return;const action=button.dataset.action;const gameId=state.currentTable?.gameId;if(action==='start-uno'&&gameId==='crazy'){e.preventDefault();e.stopImmediatePropagation();if(rtSend('start_game'))toast('Preparando partida de Crazy Eights…');return;}if(action==='crazy-draw-card'){e.preventDefault();e.stopImmediatePropagation();crazyAction(action);return;}if(action==='crazy-play-card'){e.preventDefault();e.stopImmediatePropagation();const card=state.crazy?.hand?.[Number(button.dataset.index)];const chosenSuit=card?.rank==='8'?(window.prompt('Elige el nuevo palo: ♠, ♥, ♦ o ♣','♠')||'').trim():undefined;if(card?.rank==='8'&&!['♠','♥','♦','♣'].includes(chosenSuit))return toast('Palo inválido','error');crazyAction(action,{index:Number(button.dataset.index),chosenSuit});return;}if(action==='crazy-replay'){e.preventDefault();e.stopImmediatePropagation();if(rtSend('start_game'))toast('Preparando una nueva ronda…');}}, true);
 document.addEventListener('click',e=>{const button=e.target.closest?.('[data-action]');if(!button)return;const action=button.dataset.action;if(action==='play-game'){setTimeout(()=>{const gameSelect=document.querySelector('#create-form select[name="game"]');const max=document.querySelector('#create-form select[name="max"]');if(gameSelect&&max){gameSelect.value=button.dataset.game;max.innerHTML=maxOptionsMarkup(button.dataset.game);}},25);}if(action==='leave-table'){clearTimeout(state.realtime.reconnectTimer);state.realtime.reconnectTimer=null;state.currentTable=null;state.uno=null;state.blackjack=null;state.domino=null;state.poker=null;state.rummy=null;state.crazy=null;save();}if(action==='logout'){clearTimeout(state.realtime.reconnectTimer);state.realtime.reconnectTimer=null;state.modal=null;state.view='lobby';}}, true);
 document.addEventListener('click', async event => {

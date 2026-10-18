@@ -513,7 +513,7 @@ wss.on('connection', ws => {
       if (!room.game || room.game.kind !== 'rummy' || room.game.finished) return error(ws, 'La ronda de Rummy no está activa');
       try { rummyReorderHand(room.game, client.id, message.fromIndex, message.toIndex); }
       catch (reorderError) { return error(ws, reorderError.message); }
-      broadcastGame(room); return;
+      await store.saveTable(room.table); broadcastGame(room); broadcastRoom(room); return;
     }
     if (normalizedType === 'rummy_draw_stock' || normalizedType === 'rummy_draw_discard' || normalizedType === 'rummy_discard' || normalizedType === 'rummy_meld') {
       if (!room.game || room.game.kind !== 'rummy' || room.game.finished) return error(ws, 'La ronda de Rummy no está activa');
