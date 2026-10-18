@@ -17,10 +17,62 @@
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
     <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Playfair+Display:wght@600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="styles.css" />
+    <style>
+      #startup-splash {
+        position: fixed;
+        inset: 0;
+        z-index: 9999;
+        display: grid;
+        place-items: center;
+        overflow: hidden;
+        background:
+          radial-gradient(circle at 50% 42%, rgba(194, 133, 24, .18), transparent 32%),
+          radial-gradient(circle at 50% 110%, rgba(255, 190, 55, .12), transparent 42%),
+          #050505;
+        color: #f8d77b;
+        transition: opacity .55s ease, visibility .55s ease;
+      }
+      #startup-splash::before {
+        content: "";
+        position: absolute;
+        width: min(76vw, 620px);
+        aspect-ratio: 1;
+        border: 1px solid rgba(227, 170, 52, .26);
+        border-radius: 50%;
+        box-shadow: 0 0 80px rgba(229, 170, 42, .12), inset 0 0 80px rgba(229, 170, 42, .08);
+        animation: royal-pulse 2.8s ease-in-out infinite;
+      }
+      #startup-splash::after {
+        content: "";
+        position: absolute;
+        inset: 7%;
+        border: 1px solid rgba(255, 205, 83, .08);
+        pointer-events: none;
+      }
+      #startup-splash.is-ready { opacity: 0; visibility: hidden; pointer-events: none; }
+      .startup-splash-content { position: relative; z-index: 1; display: grid; justify-items: center; gap: 18px; padding: 28px; text-align: center; }
+      .startup-splash-logo { width: min(52vw, 300px); max-height: 48vh; object-fit: contain; filter: drop-shadow(0 0 26px rgba(255, 188, 45, .32)); animation: royal-float 3.2s ease-in-out infinite; }
+      .startup-splash-caption { display: grid; gap: 8px; text-transform: uppercase; letter-spacing: .28em; font: 600 11px/1.4 "DM Sans", sans-serif; }
+      .startup-splash-caption strong { color: #fff2c5; font: 700 clamp(17px, 3vw, 26px)/1.1 "Playfair Display", serif; letter-spacing: .18em; }
+      .startup-splash-caption span { color: #c99835; }
+      .startup-splash-loader { width: 118px; height: 2px; overflow: hidden; background: rgba(255, 210, 100, .18); }
+      .startup-splash-loader::after { content: ""; display: block; width: 42%; height: 100%; background: linear-gradient(90deg, transparent, #ffe59a, transparent); animation: royal-load 1.35s ease-in-out infinite; }
+      @keyframes royal-pulse { 0%, 100% { transform: scale(.96); opacity: .55; } 50% { transform: scale(1.03); opacity: 1; } }
+      @keyframes royal-float { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-7px); } }
+      @keyframes royal-load { from { transform: translateX(-140%); } to { transform: translateX(320%); } }
+      @media (prefers-reduced-motion: reduce) { #startup-splash::before, .startup-splash-logo, .startup-splash-loader::after { animation: none; } }
+    </style>
   </head>
   <body>
+    <div id="startup-splash" role="status" aria-live="polite" aria-label="Cargando Royal Gold Club">
+      <div class="startup-splash-content">
+        <img class="startup-splash-logo" src="/assets/royal-gold-emblem.png" alt="Royal Gold Club" />
+        <div class="startup-splash-caption"><strong>Royal Gold Club</strong><span>Juega · Conecta · Gana</span></div>
+        <div class="startup-splash-loader" aria-hidden="true"></div>
+      </div>
+    </div>
     <div id="app"></div>
     <div id="toast-region" aria-live="polite"></div>
-    <script src="app.js?v=45"></script>
+    <script src="app.js?v=46"></script>
   </body>
 </html>

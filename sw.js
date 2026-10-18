@@ -1,5 +1,5 @@
-const CACHE = 'royal-gold-shell-v45';
-const SHELL = ['/', '/index.html', '/styles.css', '/app.js?v=45', '/manifest.webmanifest', '/icon.svg', '/assets/royal-gold-login.png'];
+const CACHE = 'royal-gold-shell-v46';
+const SHELL = ['/', '/index.html', '/styles.css', '/app.js?v=46', '/manifest.webmanifest', '/icon.svg', '/assets/royal-gold-login.png', '/assets/royal-gold-emblem.png'];
 
 self.addEventListener('install', event => {
   event.waitUntil(caches.open(CACHE).then(cache => cache.addAll(SHELL)).then(() => self.skipWaiting()));
