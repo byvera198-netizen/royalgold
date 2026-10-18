@@ -184,8 +184,10 @@ export function reorderHand(game, playerId, fromIndex, toIndex) {
   return player.hand;
 }
 
-export function serializeGame(game, viewerId) {
-  const viewer = game.players.find(player => player.id === viewerId);
+export function serializeGame(game, viewerId, viewerName = '') {
+  const exactViewer = game.players.find(player => player.id === viewerId);
+  const namedViewers = viewerName ? game.players.filter(player => player.name === viewerName) : [];
+  const viewer = exactViewer || (namedViewers.length === 1 ? namedViewers[0] : null);
   return {
     kind: game.kind,
     phase: game.phase,
@@ -204,8 +206,8 @@ export function serializeGame(game, viewerId) {
     players: game.players.map(player => ({
       id: player.id,
       name: player.name,
-      isMe: player.id === viewerId,
-      hand: player.id === viewerId || game.finished ? player.hand : undefined,
+      isMe: player.id === viewer?.id,
+      hand: player.id === viewer?.id || game.finished ? player.hand : undefined,
       handCount: player.hand.length,
       melds: player.melds,
       groupCount: game.scores?.find(score => score.id === player.id)?.groups || player.melds.length

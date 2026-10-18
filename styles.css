@@ -280,10 +280,10 @@ body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:-1;ba
 .rummy-step .active{border-color:var(--gold);color:var(--gold-light);background:rgba(212,175,55,.1)}
 @media (max-width:640px){.rummy-center{flex-wrap:wrap}.rummy-center .rummy-discard-pile{order:2}.rummy-center .rummy-pile{order:1}.rummy-center>[data-action="rummy-draw-discard"]{order:3;min-height:40px}.rummy-actions{width:100%;justify-content:stretch}.rummy-actions .button{flex:1;min-height:42px}}
 .rummy-cards{gap:10px;padding:10px 5px 18px;overflow-x:auto;scrollbar-width:thin}
-.rummy-card{width:82px;height:118px;flex:0 0 82px}
+.rummy-card{width:100px;height:140px;flex:0 0 100px}
 .rummy-corner b{font-size:16px}.rummy-corner em{font-size:12px}.rummy-card-art{inset:23px 7px 22px}.rummy-pip{font-size:18px}.rummy-ace{font-size:54px}.rummy-court-rank{font-size:36px}.rummy-court-suit{font-size:15px}
-@media (max-width:1050px) and (min-width:641px){.rummy-card{width:74px;height:108px;flex-basis:74px}.rummy-pip{font-size:16px}.rummy-ace{font-size:48px}.rummy-court-rank{font-size:32px}}
-@media (max-width:640px){.rummy-cards{flex-wrap:nowrap;justify-content:flex-start;gap:8px;padding-inline:3px}.rummy-card{width:64px;height:94px;flex-basis:64px}.rummy-card-art{inset:20px 5px 18px}.rummy-corner b{font-size:13px}.rummy-corner em{font-size:10px}.rummy-pip{font-size:14px}.rummy-ace{font-size:42px}.rummy-court-rank{font-size:28px}.rummy-court-suit{font-size:12px}}
+@media (max-width:1050px) and (min-width:641px){.rummy-card{width:90px;height:126px;flex-basis:90px}.rummy-pip{font-size:17px}.rummy-ace{font-size:50px}.rummy-court-rank{font-size:34px}}
+@media (max-width:640px){.rummy-cards{flex-wrap:nowrap;justify-content:flex-start;gap:8px;padding-inline:3px}.rummy-card{width:64px;height:92px;flex-basis:64px}.rummy-card-art{inset:20px 5px 18px}.rummy-corner b{font-size:13px}.rummy-corner em{font-size:10px}.rummy-pip{font-size:14px}.rummy-ace{font-size:42px}.rummy-court-rank{font-size:28px}.rummy-court-suit{font-size:12px}}
 .rummy-card{position:relative;overflow:hidden;padding:0}
 .rummy-card[data-reorderable="true"]{touch-action:none;cursor:grab;user-select:none;-webkit-user-select:none}.rummy-card.dragging{opacity:.5;transform:translateY(-10px) scale(.96);cursor:grabbing;z-index:8}.rummy-card.drop-target{outline:3px solid var(--gold-light);outline-offset:5px;transform:translateY(-12px) scale(1.03);box-shadow:0 0 0 2px rgba(255,228,126,.55),0 0 28px rgba(245,190,54,.7)}.rummy-sort-hint{width:100%;margin:0;color:rgba(247,241,227,.62);font-size:10px;text-align:center;letter-spacing:.02em}
 .rummy-corner{position:absolute;z-index:2;display:flex;flex-direction:column;align-items:center;line-height:.88;font-family:Georgia,serif;font-weight:700}
@@ -292,7 +292,7 @@ body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:-1;ba
 .rummy-card-art{position:absolute;inset:19px 5px 18px;display:block;color:inherit}
 .rummy-pip{position:absolute;transform:translate(-50%,-50%);font-size:14px;line-height:1;font-family:Georgia,serif}
 .rummy-card-art.ace{display:grid;place-items:center}.rummy-ace{font-size:40px;line-height:1}
-.rummy-card-art.court{display:grid;place-items:center;border:1px solid currentColor;border-radius:4px;background:linear-gradient(135deg,rgba(212,175,55,.18),rgba(255,255,255,.55) 48%,rgba(160,38,38,.2))}
+.rummy-card-art.court{display:grid;place-items:center;border:2px solid #1d4e9a;border-radius:4px;background:linear-gradient(135deg,#fffdf4 0 38%,#f4d56a 39% 48%,#db303c 49% 63%,#fffdf4 64%);box-shadow:inset 0 0 0 2px rgba(255,255,255,.9),inset 0 0 0 4px rgba(20,55,125,.28)}
 .rummy-court-rank{font-family:Georgia,serif;font-size:27px;font-weight:700;line-height:1}.rummy-court-suit{position:absolute;top:5px;left:7px;font-size:13px}.rummy-court-suit.second{right:7px;bottom:5px;top:auto;left:auto;transform:rotate(180deg)}
 .rummy-card.red .rummy-card-art.court{background:linear-gradient(135deg,rgba(161,43,43,.18),rgba(255,255,255,.6) 48%,rgba(212,175,55,.18))}
 @media (max-width:640px){.rummy-card-art{inset:17px 4px 16px}.rummy-corner{top:4px}.rummy-corner.bottom{bottom:4px}.rummy-corner b{font-size:11px}.rummy-corner em{font-size:8px}.rummy-pip{font-size:11px}.rummy-ace{font-size:31px}.rummy-court-rank{font-size:22px}.rummy-court-suit{font-size:10px}}
@@ -303,7 +303,7 @@ body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:-1;ba
 @keyframes rummySelectedGlow{from{opacity:.55;box-shadow:inset 0 0 4px rgba(255,255,220,.35)}to{opacity:1;box-shadow:inset 0 0 14px rgba(255,224,105,.9)}}
 .rummy-card-art.court{display:grid;place-items:stretch;padding:3px;border:1px solid rgba(114,78,20,.72);border-radius:5px;background:linear-gradient(135deg,rgba(24,35,61,.96),rgba(221,182,75,.72) 48%,rgba(126,27,35,.88));overflow:hidden}
 .rummy-court-portrait{display:grid;grid-template-rows:1fr 1px 1fr;min-height:100%;border:1px solid rgba(255,246,190,.68);border-radius:3px;background:linear-gradient(90deg,rgba(255,247,210,.22),rgba(255,255,255,.7) 48%,rgba(255,247,210,.18));box-shadow:inset 0 0 0 1px rgba(75,42,8,.35)}
-.rummy-court-half{position:relative;display:grid;place-items:center;overflow:hidden;background:radial-gradient(circle at 50% 35%,rgba(255,245,190,.8) 0 10%,transparent 11%),linear-gradient(90deg,rgba(17,34,66,.7),rgba(255,244,190,.55) 49%,rgba(145,28,36,.72));}
+.rummy-court-half{position:relative;display:grid;place-items:center;overflow:hidden;background:radial-gradient(circle at 50% 35%,#fff 0 10%,transparent 11%),linear-gradient(90deg,#153f91,#f7d44f 48%,#d52d3d);}
 .rummy-court-half::before{content:"";position:absolute;width:40%;height:54%;top:28%;border-radius:50% 50% 38% 38%;background:linear-gradient(90deg,#182d54,#f7dc91 48%,#8c2732);border:1px solid rgba(76,45,15,.68);box-shadow:0 0 0 2px rgba(255,240,170,.2)}
 .rummy-court-half::after{content:"";position:absolute;width:22%;height:21%;top:22%;border-radius:50%;background:radial-gradient(circle at 38% 35%,#fff7d2 0 10%,#2b1b17 11% 17%,#e4b77a 18% 62%,#5d2933 63%);border:1px solid rgba(65,33,13,.7)}
 .rummy-court-half.mirror{transform:rotate(180deg)}

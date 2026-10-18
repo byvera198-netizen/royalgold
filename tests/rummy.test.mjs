@@ -38,6 +38,19 @@ test('protege el turno y las manos privadas', () => {
   assert.equal(view.players.find(player => player.id === 'p2').hand, undefined);
 });
 
+test('entrega la mano privada correcta al tercer jugador', () => {
+  const game = createGame([
+    { id: 'p1', name: 'Ana' },
+    { id: 'p2', name: 'Luis' },
+    { id: 'p3', name: 'Marta' }
+  ]);
+  const view = serializeGame(game, 'reconnected-player-id', 'Marta');
+  assert.equal(view.hand.length, 7);
+  assert.equal(view.players.find(player => player.name === 'Marta').isMe, true);
+  assert.equal(view.players.find(player => player.name === 'Marta').hand.length, 7);
+  assert.equal(view.players.find(player => player.name === 'Ana').hand, undefined);
+});
+
 test('permite robar y descartar para avanzar el turno', () => {
   const game = createGame(players);
   const active = game.players[game.currentPlayer].id;

@@ -104,7 +104,7 @@ function publicGame(room, client) {
   if (room.game.kind === 'blackjack') return serializeBlackjackGame(room.game, client.id);
   if (room.game.kind === 'domino') return serializeDominoGame(room.game, client.id);
   if (room.game.kind === 'poker') return serializePokerGame(room.game, client.id);
-  if (room.game.kind === 'rummy') return serializeRummyGame(room.game, client.id);
+  if (room.game.kind === 'rummy') return serializeRummyGame(room.game, client.id, client.name);
   if (room.game.kind === 'crazy') return serializeCrazyGame(room.game, client.id);
   return serializeGame(room.game, client.id);
 }
