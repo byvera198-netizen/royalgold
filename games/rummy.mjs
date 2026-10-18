@@ -172,6 +172,18 @@ export function discardCard(game, playerId, index) {
   return card;
 }
 
+export function reorderHand(game, playerId, fromIndex, toIndex) {
+  const player = game.players.find(item => item.id === playerId);
+  if (!player) throw new Error('Jugador inválido');
+  const from = Number(fromIndex);
+  const to = Number(toIndex);
+  if (!Number.isInteger(from) || !Number.isInteger(to) || from < 0 || to < 0 || from >= player.hand.length || to >= player.hand.length) throw new Error('Posición de carta inválida');
+  if (from === to) return player.hand;
+  const [card] = player.hand.splice(from, 1);
+  player.hand.splice(to, 0, card);
+  return player.hand;
+}
+
 export function serializeGame(game, viewerId) {
   const viewer = game.players.find(player => player.id === viewerId);
   return {

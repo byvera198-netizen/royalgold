@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { createGame, discardCard, drawDiscard, drawStock, findMeld, layMeld, serializeGame, validMeld } from '../games/rummy.mjs';
+import { createGame, discardCard, drawDiscard, drawStock, findMeld, layMeld, reorderHand, serializeGame, validMeld } from '../games/rummy.mjs';
 
 const players = [{ id: 'p1', name: 'Ana' }, { id: 'p2', name: 'Luis' }];
 
@@ -18,6 +18,14 @@ test('crea Rummy con siete cartas por jugador y descarte inicial', () => {
   assert.equal(game.stock.length + game.discard.length + game.players.reduce((sum, player) => sum + player.hand.length, 0), 52);
   assert.equal(game.discard.length, 1);
   assert.equal(game.phase, 'draw');
+});
+
+test('permite reorganizar la mano sin cambiar sus cartas', () => {
+  const game = createGame(players);
+  const handBefore = game.players[0].hand.slice();
+  reorderHand(game, 'p1', 0, handBefore.length - 1);
+  assert.equal(game.players[0].hand.at(-1).id, handBefore[0].id);
+  assert.deepEqual([...game.players[0].hand].sort((a, b) => a.id.localeCompare(b.id)), [...handBefore].sort((a, b) => a.id.localeCompare(b.id)));
 });
 
 test('protege el turno y las manos privadas', () => {

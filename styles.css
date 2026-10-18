@@ -285,6 +285,7 @@ body::before{content:"";position:fixed;inset:0;pointer-events:none;z-index:-1;ba
 @media (max-width:1050px) and (min-width:641px){.rummy-card{width:74px;height:108px;flex-basis:74px}.rummy-pip{font-size:16px}.rummy-ace{font-size:48px}.rummy-court-rank{font-size:32px}}
 @media (max-width:640px){.rummy-cards{flex-wrap:nowrap;justify-content:flex-start;gap:8px;padding-inline:3px}.rummy-card{width:64px;height:94px;flex-basis:64px}.rummy-card-art{inset:20px 5px 18px}.rummy-corner b{font-size:13px}.rummy-corner em{font-size:10px}.rummy-pip{font-size:14px}.rummy-ace{font-size:42px}.rummy-court-rank{font-size:28px}.rummy-court-suit{font-size:12px}}
 .rummy-card{position:relative;overflow:hidden;padding:0}
+.rummy-card[draggable="true"]{touch-action:none;cursor:grab}.rummy-card.dragging{opacity:.48;transform:scale(.96);cursor:grabbing}.rummy-card.drop-target{outline:2px solid var(--gold-light);outline-offset:4px;transform:translateY(-6px)}.rummy-sort-hint{width:100%;margin:0;color:rgba(247,241,227,.62);font-size:10px;text-align:center;letter-spacing:.02em}
 .rummy-corner{position:absolute;z-index:2;display:flex;flex-direction:column;align-items:center;line-height:.88;font-family:Georgia,serif;font-weight:700}
 .rummy-corner.top{top:5px;left:6px}.rummy-corner.bottom{right:6px;bottom:5px;transform:rotate(180deg)}
 .rummy-corner b{font-size:13px}.rummy-corner em{font-size:10px;font-style:normal;margin-top:2px}

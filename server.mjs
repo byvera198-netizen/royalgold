@@ -8,7 +8,7 @@ import { createGame, drawCard, isPlayable as unoPlayable, playCard, serializeGam
 import { createGame as createBlackjackGame, handValue as blackjackHandValue, hit as blackjackHit, stand as blackjackStand, serializeGame as serializeBlackjackGame } from './games/blackjack.mjs';
 import { createGame as createDominoGame, botMove as dominoBotMove, drawTile as dominoDraw, placeTile as dominoPlace, pass as dominoPass, serializeGame as serializeDominoGame } from './games/domino.mjs';
 import { act as pokerAct, createGame as createPokerGame, serializeGame as serializePokerGame } from './games/poker.mjs';
-import { createGame as createRummyGame, discardCard as rummyDiscard, drawDiscard as rummyDrawDiscard, drawStock as rummyDrawStock, findMeld as rummyFindMeld, layMeld as rummyLayMeld, serializeGame as serializeRummyGame } from './games/rummy.mjs';
+import { createGame as createRummyGame, discardCard as rummyDiscard, drawDiscard as rummyDrawDiscard, drawStock as rummyDrawStock, findMeld as rummyFindMeld, layMeld as rummyLayMeld, reorderHand as rummyReorderHand, serializeGame as serializeRummyGame } from './games/rummy.mjs';
 import { createGame as createCrazyGame, drawCard as crazyDrawCard, isPlayable as crazyPlayable, playCard as crazyPlayCard, serializeGame as serializeCrazyGame } from './games/crazy-eights.mjs';
 import { createStore } from './server/store.mjs';
 
@@ -508,6 +508,12 @@ wss.on('connection', ws => {
       catch (playError) { return error(ws, playError.message); }
       if (room.game.finished) { room.table.status = 'finished'; broadcastResult(room); }
       await store.saveTable(room.table); broadcastGame(room); broadcastRoom(room); if (botForTurn(room)) void runBotTurns(room); return;
+    }
+    if (normalizedType === 'rummy_reorder_hand') {
+      if (!room.game || room.game.kind !== 'rummy' || room.game.finished) return error(ws, 'La ronda de Rummy no está activa');
+      try { rummyReorderHand(room.game, client.id, message.fromIndex, message.toIndex); }
+      catch (reorderError) { return error(ws, reorderError.message); }
+      broadcastGame(room); return;
     }
     if (normalizedType === 'rummy_draw_stock' || normalizedType === 'rummy_draw_discard' || normalizedType === 'rummy_discard' || normalizedType === 'rummy_meld') {
       if (!room.game || room.game.kind !== 'rummy' || room.game.finished) return error(ws, 'La ronda de Rummy no está activa');
