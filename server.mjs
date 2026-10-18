@@ -93,7 +93,7 @@ function send(ws, type, payload = {}) {
 function publicTable(room) {
   return {
     ...room.table,
-    players: [...room.clients.values()].map(client => ({ id: client.id, name: client.name, email: client.email, connected: client.ws ? client.ws.readyState === 1 : true, voiceActive: Boolean(client.voiceActive) }))
+    players: [...room.clients.values()].map(client => ({ id: client.id, name: client.isBot ? 'Royal Gold AI' : client.name, email: client.email, connected: client.ws ? client.ws.readyState === 1 : true, voiceActive: Boolean(client.voiceActive) }))
   };
 }
 function publicGame(room, client) {
@@ -287,7 +287,7 @@ async function startRoomGame(room, client) {
   if (room.table.hostId ? room.table.hostId !== client.userId : room.table.host !== client.email) return error(client.ws, 'Solo el anfitrión puede iniciar la partida');
   if (room.game && !room.game.finished) return error(client.ws, 'La partida ya está en curso');
   room.table.status = 'playing'; room.roundId = randomUUID();
-  const players = [...room.clients.values()].map(({ id, name }) => ({ id, name }));
+  const players = [...room.clients.values()].map(({ id, name, isBot }) => ({ id, name: isBot ? 'Royal Gold AI' : name }));
   try { room.game = room.table.gameId === 'blackjack' ? createBlackjackGame(players) : room.table.gameId === 'domino' ? createDominoGame(players) : room.table.gameId === 'poker' ? createPokerGame(players) : room.table.gameId === 'rummy' ? createRummyGame(players) : room.table.gameId === 'crazy' ? createCrazyGame(players) : createGame(players); }
   catch (gameError) { room.table.status = 'waiting'; return error(client.ws, gameError.message); }
   await store.saveTable(room.table); syncRoomPresence(room); broadcastRoom(room); broadcastGame(room); void runBotTurns(room);
@@ -383,7 +383,7 @@ wss.on('connection', ws => {
     if (type === 'add_bot') {
       const room = rooms.get(client.roomCode); if (!room || room.clients.size >= room.table.maxPlayers) return;
       if (room.table.solo) return error(ws, 'Esta mesa ya tiene un rival de Royal Gold AI');
-      const bot = { ws: null, isBot: true, id: `bot-${randomUUID()}`, name: `Rival de prueba ${String(room.clients.size).padStart(2, '0')}`, email: `bot-${room.clients.size}@local`, roomCode: client.roomCode, voiceActive: false };
+      const bot = { ws: null, isBot: true, id: `bot-${randomUUID()}`, name: 'Royal Gold AI', email: `bot-${room.clients.size}@local`, roomCode: client.roomCode, voiceActive: false };
       room.table.solo = true;
       room.clients.set(bot.id, bot); room.playerEmails.set(bot.email, bot.id);
       await store.saveTable(room.table);
