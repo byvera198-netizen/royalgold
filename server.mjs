@@ -184,37 +184,41 @@ function rummyDiscardIndex(hand) {
   const values = { A: 14, K: 13, Q: 12, J: 11 };
   return hand.reduce((best, card, index) => (Number(card.rank) || values[card.rank] || 0) > (Number(hand[best]?.rank) || values[hand[best]?.rank] || 0) ? index : best, 0);
 }
+// The bot receives only its own hand and public table state for decisions.
+function botDecisionView(game, botId) {
+  const player = game?.players?.find(item => item.id === botId);
+  if (!player) return null;
+  return { hand: player.hand.map(card => ({ ...card })), topDiscard: game.discard?.at(-1) || null, currentColor: game.currentColor, currentSuit: game.currentSuit, currentBet: game.currentBet, playerBet: player.bet };
+}
 function botStep(room) {
   const game = room.game;
   const bot = botForTurn(room);
   if (!bot) return false;
+  const view = botDecisionView(game, bot.id);
+  if (!view) return false;
   if (game.kind === 'uno') {
-    const player = game.players[game.turn];
-    const index = player.hand.findIndex(card => unoPlayable(card, game.discard.at(-1), game.currentColor));
-    if (index >= 0) playCard(game, bot.id, index, chooseColor(player.hand)); else drawCard(game, bot.id);
+    const index = view.hand.findIndex(card => unoPlayable(card, view.topDiscard, view.currentColor));
+    if (index >= 0) playCard(game, bot.id, index, chooseColor(view.hand)); else drawCard(game, bot.id);
     return true;
   }
   if (game.kind === 'crazy') {
-    const player = game.players[game.currentPlayer];
-    const index = player.hand.findIndex(card => crazyPlayable(card, game.discard.at(-1), game.currentSuit));
-    if (index >= 0) crazyPlayCard(game, bot.id, index, chooseSuit(player.hand)); else crazyDrawCard(game, bot.id);
+    const index = view.hand.findIndex(card => crazyPlayable(card, view.topDiscard, view.currentSuit));
+    if (index >= 0) crazyPlayCard(game, bot.id, index, chooseSuit(view.hand)); else crazyDrawCard(game, bot.id);
     return true;
   }
   if (game.kind === 'domino') { dominoBotMove(game, bot.id); return true; }
   if (game.kind === 'blackjack') {
-    const player = game.players[game.activePlayer];
-    if (blackjackHandValue(player.hand) < 16) blackjackHit(game, bot.id); else blackjackStand(game, bot.id);
+    if (blackjackHandValue(view.hand) < 16) blackjackHit(game, bot.id); else blackjackStand(game, bot.id);
     return true;
   }
   if (game.kind === 'poker') {
-    const player = game.players[game.currentPlayer];
-    const toCall = Math.max(0, game.currentBet - player.bet);
+    const toCall = Math.max(0, view.currentBet - view.playerBet);
     pokerAct(game, bot.id, toCall ? 'call' : 'check');
     return true;
   }
   if (game.kind === 'rummy') {
     if (game.phase === 'draw') rummyDrawStock(game, bot.id);
-    else rummyDiscard(game, bot.id, rummyDiscardIndex(game.players[game.currentPlayer].hand));
+    else rummyDiscard(game, bot.id, rummyDiscardIndex(view.hand));
     return true;
   }
   return false;
@@ -223,6 +227,8 @@ function recoverBotStep(room) {
   const game = room.game;
   const bot = botForTurn(room);
   if (!game || !bot) return false;
+  const view = botDecisionView(game, bot.id);
+  if (!view) return false;
   try {
     if (game.kind === 'uno') { drawCard(game, bot.id); return true; }
     if (game.kind === 'crazy') { crazyDrawCard(game, bot.id); return true; }
@@ -231,7 +237,7 @@ function recoverBotStep(room) {
     if (game.kind === 'poker') { pokerAct(game, bot.id, 'fold'); return true; }
     if (game.kind === 'rummy') {
       if (game.phase === 'draw') rummyDrawStock(game, bot.id);
-      else rummyDiscard(game, bot.id, rummyDiscardIndex(game.players[game.currentPlayer].hand));
+      else rummyDiscard(game, bot.id, rummyDiscardIndex(view.hand));
       return true;
     }
   } catch (recoveryError) { console.error('Royal Gold AI recovery error:', recoveryError); }
