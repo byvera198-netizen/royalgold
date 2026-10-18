@@ -29,7 +29,7 @@ const voiceIceServers = [
   }] : [])
 ];
 function isTableOwner(table, client) {
-  return Boolean((table?.hostId && client?.userId && table.hostId === client.userId) || (table?.host && client?.email && table.host.toLowerCase() === client.email.toLowerCase()));
+  return Boolean((table?.hostId && client?.userId && table.hostId === client.userId) || (table?.host && client?.email && table.host.toLowerCase() === client.email.toLowerCase()) || (table?.hostName && client?.name && table.hostName.toLowerCase() === client.name.toLowerCase()));
 }
 async function verifyAccessToken(token) {
   if (store.mode !== 'supabase' || !token || !supabaseUrl || !supabaseSecretKey) return null;
@@ -96,7 +96,7 @@ function send(ws, type, payload = {}) {
 function publicTable(room) {
   return {
     ...room.table,
-    players: [...room.clients.values()].map(client => ({ id: client.id, name: client.isBot ? 'Royal Gold AI' : client.name, email: client.email, connected: client.ws ? client.ws.readyState === 1 : true, voiceActive: Boolean(client.voiceActive) }))
+    players: [...room.clients.values()].map(client => ({ id: client.id, name: client.isBot ? 'Royal Gold AI' : client.name, email: client.email, isHost: isTableOwner(room.table, client), connected: client.ws ? client.ws.readyState === 1 : true, voiceActive: Boolean(client.voiceActive) }))
   };
 }
 function publicGame(room, client) {
@@ -352,7 +352,7 @@ wss.on('connection', ws => {
       const gameId = message.gameId === 'uno' ? 'uno' : String(message.gameId || 'uno');
       const requestedMaxPlayers = Math.max(2, Math.min(gameId === 'rummy' ? 6 : 10, Number(message.maxPlayers) || 4));
       const maxPlayers = solo ? 2 : requestedMaxPlayers;
-      const table = { id: randomUUID(), code, name: String(message.name || 'Mesa Royal').slice(0, 60), gameId, gameName: String(message.gameName || 'UNO'), maxPlayers, private: message.private !== false, voice: message.voice !== false, stake: Math.max(0, Number(message.stake) || 0), solo, status: 'waiting', createdAt: new Date().toISOString(), expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), host: client.email, hostId: client.userId || null };
+      const table = { id: randomUUID(), code, name: String(message.name || 'Mesa Royal').slice(0, 60), gameId, gameName: String(message.gameName || 'UNO'), maxPlayers, private: message.private !== false, voice: message.voice !== false, stake: Math.max(0, Number(message.stake) || 0), solo, status: 'waiting', createdAt: new Date().toISOString(), expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(), host: client.email, hostName: client.name, hostId: client.userId || null };
       const room = { table, clients: new Map(), playerEmails: new Map(), chat: [], game: null, roundId: null, botRunning: false, needsRecoveryStart: false };
       rooms.set(code, room); room.clients.set(client.id, client); if (client.email) room.playerEmails.set(client.email, client.id); client.roomCode = code;
       if (solo) { const bot = { ws: null, isBot: true, id: `bot-${randomUUID()}`, name: 'Royal Gold AI', email: `bot-${randomUUID()}@royal.gold`, roomCode: code, voiceActive: false }; room.clients.set(bot.id, bot); room.playerEmails.set(bot.email, bot.id); }
@@ -396,6 +396,29 @@ wss.on('connection', ws => {
       const bot = { ws: null, isBot: true, id: `bot-${randomUUID()}`, name: 'Royal Gold AI', email: `bot-${room.clients.size}@local`, roomCode: client.roomCode, voiceActive: false };
       room.table.solo = true;
       room.clients.set(bot.id, bot); room.playerEmails.set(bot.email, bot.id);
+      await store.saveTable(room.table);
+      broadcastRoom(room); return;
+    }
+    if (type === 'edit_table') {
+      const code = String(message.code || client.roomCode || '').trim().toUpperCase();
+      const room = rooms.get(code);
+      if (!room) {
+        const storedTable = await store.findTableByCode(code);
+        if (!storedTable) return error(ws, 'No encontramos esa mesa');
+        if (!isTableOwner(storedTable, client)) return error(ws, 'Solo el creador puede editar la mesa');
+        if (storedTable.status === 'playing') return error(ws, 'No puedes editar una mesa que ya está en juego');
+        const requestedMax = Math.max(2, Math.min(storedTable.gameId === 'rummy' ? 6 : 10, Number(message.maxPlayers) || storedTable.maxPlayers));
+        storedTable.name = String(message.name || storedTable.name).trim().slice(0, 60) || storedTable.name;
+        storedTable.maxPlayers = requestedMax;
+        await store.saveTable(storedTable);
+        send(ws, 'table_updated', { table: storedTable }); return;
+      }
+      if (!isTableOwner(room.table, client)) return error(ws, 'Solo el creador puede editar la mesa');
+      if (room.table.status === 'playing') return error(ws, 'No puedes editar una mesa que ya está en juego');
+      const requestedMax = Math.max(2, Math.min(room.table.gameId === 'rummy' ? 6 : 10, Number(message.maxPlayers) || room.table.maxPlayers));
+      if (requestedMax < room.clients.size) return error(ws, `La mesa ya tiene ${room.clients.size} participantes`);
+      room.table.name = String(message.name || room.table.name).trim().slice(0, 60) || room.table.name;
+      room.table.maxPlayers = requestedMax;
       await store.saveTable(room.table);
       broadcastRoom(room); return;
     }

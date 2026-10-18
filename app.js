@@ -396,6 +396,12 @@ function handleRealtimeMessage(message) {
     state.tables = state.tables.filter(table => table.code !== message.code);
     state.currentTable = null; state.uno = null; state.blackjack = null; state.domino = null; state.poker = null; state.rummy = null; state.crazy = null; state.view = 'lobby'; save(); render(); toast(message.message || 'La mesa fue eliminada', 'success'); return;
   }
+  if (message.type === 'table_updated') {
+    const existing = state.tables.findIndex(table => table.code === message.table.code);
+    if (existing >= 0) state.tables[existing] = message.table; else state.tables.unshift(message.table);
+    if (state.currentTable?.code === message.table.code) state.currentTable = message.table;
+    save(); render(); toast('Mesa actualizada', 'success'); return;
+  }
   if (message.type === 'game_result') { recordResult(message.result); return; }
   if (message.type === 'chat_history') { state.chat = Array.isArray(message.messages) ? message.messages.slice(-100) : []; if (state.view === 'table') render(); return; }
   if (message.type === 'chat_message') { state.chat.push(message.message); state.chat = state.chat.slice(-50); if (state.view === 'table') render(); return; }
@@ -464,7 +470,7 @@ function toast(message, kind = '') { const el = document.createElement('div'); e
 function escapeHtml(text='') { return text.replace(/[&<>'"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;',"'":'&#39;','"':'&quot;'}[c])); }
 function formatDate(iso) { return new Intl.DateTimeFormat('es-EC', { day:'2-digit', month:'short', year:'numeric' }).format(new Date(iso)); }
 function navItem(id, icon, label) { return `<button class="${state.view === id ? 'active' : ''}" data-nav="${id}">${icon}<span>${label}</span></button>`; }
-function isOwnTable(table) { return Boolean(table && (((table.hostId && state.user?.id && table.hostId === state.user.id) || (table.host && state.user?.email && table.host.toLowerCase() === state.user.email.toLowerCase())))); }
+function isOwnTable(table) { const identityMatch = player => player?.isHost && ((player.email && state.user?.email && player.email.toLowerCase() === state.user.email.toLowerCase()) || (player.name && [state.user?.alias, state.user?.name].filter(Boolean).some(name => player.name.toLowerCase() === name.toLowerCase()))); return Boolean(table && (((table.hostId && state.user?.id && table.hostId === state.user.id) || (table.host && state.user?.email && table.host.toLowerCase() === state.user.email.toLowerCase()) || (table.hostName && state.user?.alias && table.hostName.toLowerCase() === state.user.alias.toLowerCase()) || (table.hostName && state.user?.name && table.hostName.toLowerCase() === state.user.name.toLowerCase()) || (table.players || []).some(identityMatch)))); }
 
 function authView() {
   if (state.authMode === 'login') {
@@ -707,7 +713,7 @@ function casinoTableRow(table) {
     <div class="casino-table-game"><span class="casino-private">${table.private ? '● Privada' : '○ Pública'}</span><h3>${escapeHtml(table.name)}</h3><p>${escapeHtml(table.gameName)} · ${escapeHtml(table.code)}</p></div>
     <div class="casino-table-detail"><span>Jugadores · ${players.length}/${table.maxPlayers}</span><strong>${escapeHtml(names.join(' · ') || 'Esperando jugadores')}</strong></div>
     <div class="casino-table-detail"><span>Estado</span><strong class="casino-status-${table.status}">${status}</strong></div>
-    <div class="casino-table-actions"><button class="button dark small" data-action="join-table" data-code="${escapeHtml(table.code)}">Entrar</button>${canDelete ? `<button class="button danger small" data-action="delete-table" data-code="${escapeHtml(table.code)}">Eliminar</button>` : ''}</div>
+    <div class="casino-table-actions"><button class="button dark small" data-action="join-table" data-code="${escapeHtml(table.code)}">Entrar</button>${canDelete ? `<button class="button ghost small" data-action="edit-table" data-code="${escapeHtml(table.code)}">Editar</button><button class="button danger small" data-action="delete-table" data-code="${escapeHtml(table.code)}">Eliminar</button>` : ''}</div>
   </article>`;
 }
 
@@ -831,6 +837,23 @@ document.addEventListener('change',e=>{const select=e.target.closest?.('#create-
 document.addEventListener('click',event=>{const button=event.target.closest?.('[data-nav]');if(!button)return;event.preventDefault();event.stopImmediatePropagation();state.view=button.dataset.nav;state.modal=null;render();},true);
 document.addEventListener('click',e=>{const google=e.target.closest?.('#google-login');if(!google)return;e.preventDefault();startGoogleAuth()});
 document.addEventListener('click',e=>{const demo=e.target.closest?.('#demo-login');if(!demo)return;e.preventDefault();state.user={name:'B. Alvear',email:'byvera198@gmail.com',role:'admin',isAdmin:true,chips:1250,games:0,wins:0};state.view='lobby';state.modal=null;state.currentTable=null;save();toast('Cuenta de desarrollador local iniciada','success');render()});
+document.addEventListener('click', event => {
+  const button = event.target.closest?.('[data-action="edit-table"]');
+  if (!button) return;
+  event.preventDefault();
+  event.stopImmediatePropagation();
+  const code = button.dataset.code;
+  const table = state.tables.find(item => item.code === code) || state.currentTable;
+  if (!isOwnTable(table)) return toast('Solo el creador puede editar la mesa', 'error');
+  if (table.status === 'playing') return toast('No puedes editar una mesa que ya está en juego', 'error');
+  const name = window.prompt('Nombre de la mesa', table.name);
+  if (name === null) return;
+  const maxPlayers = window.prompt(`Máximo de jugadores (2-${table.gameId === 'rummy' ? 6 : 10})`, String(table.maxPlayers));
+  if (maxPlayers === null) return;
+  const parsedMax = Number(maxPlayers);
+  if (!Number.isInteger(parsedMax) || parsedMax < 2 || parsedMax > (table.gameId === 'rummy' ? 6 : 10) || parsedMax < (table.players || []).length) return toast('El máximo de jugadores no es válido', 'error');
+  if (rtSend('edit_table', { code, name, maxPlayers: parsedMax })) toast('Actualizando mesa…');
+}, true);
 document.addEventListener('click', event => {
   const button = event.target.closest?.('[data-action="delete-table"]');
   if (!button) return;
